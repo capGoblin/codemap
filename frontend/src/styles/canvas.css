@@ -94,3 +94,8 @@ body { background: var(--bg); color: var(--fg); font: 13px/1.4 system-ui, sans-s
 .target-card[aria-pressed="true"] { outline: 2px solid var(--fg); }
 .target-label { font-weight: 600; }
 .target-use { font-size: 11px; color: var(--muted); }
+.progress-strip { padding: 4px 10px; background: #e0e7ff; color: #1e3a8a; font-size: 12px; }
+.banner-warn { padding: 6px 10px; background: #fef3c7; color: #78350f; }
+.spinner { display: inline-block; width: 10px; height: 10px; border: 2px solid #94a3b8; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty { margin-top: 4px; font-size: 11px; color: #64748b; }

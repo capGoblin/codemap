@@ -10,6 +10,7 @@ import { layoutInBrowser } from "../graph/layout.browser";
 import type { Box } from "../graph/layout";
 import { nodesTouching } from "../effects/categories";
 import { useStore, type CameraRequest } from "../state/store";
+import { togglePhase } from "../state/expand";
 import { PhaseNode } from "./PhaseNode";
 import { StepNode } from "./StepNode";
 import { edgeTypes } from "./edges";
@@ -93,7 +94,7 @@ export function FlowCanvas({ layoutFn = layoutInBrowser }: { layoutFn?: LayoutFn
     }, 0);
   }, [nodes]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { selectNode, toggleOpen } = useStore.getState();
+  const { selectNode } = useStore.getState();
   return (
     <>
       {layoutError && <div className="banner-err">Layout failed: {layoutError}</div>}
@@ -108,7 +109,7 @@ export function FlowCanvas({ layoutFn = layoutInBrowser }: { layoutFn?: LayoutFn
         minZoom={0.1}
         onNodeClick={(_, n) => {
           const vn = (n.data as { vn: VisibleNode }).vn;
-          if (vn.kind === "phase") toggleOpen(vn.id);
+          if (vn.kind === "phase") togglePhase(vn.id);
           else selectNode(vn.id);
         }}
       >
