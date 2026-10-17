@@ -54,12 +54,14 @@ export function App({ graph, layoutFn, detailLoader }: Props) {
   const status = useStore((s) => s.graph?.trace.status ?? null);
   const [message, setMessage] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  const [reason, setReason] = useState<string | null>(null);
 
   useTraceEvents(
     useApi ? traceId : null,
     (e) => {
       setMessage(e.message);
       if (e.kind === "warning") setWarning(e.message);
+      if (e.kind === "finished") setReason(e.message || null);
       if (e.kind === "phase_split" || e.kind === "finished") {
         getGraph(traceId!, 1).then(setGraph, (err: unknown) =>
           setError(`Could not refresh trace ${traceId}: ${errorText(err)}`),
@@ -91,7 +93,7 @@ export function App({ graph, layoutFn, detailLoader }: Props) {
     <ReactFlowProvider>
       <div className="app">
         {error && <div className="banner-err">{error}</div>}
-        {status && <StatusBanner status={status} message={message} warning={warning} />}
+        {status && <StatusBanner status={status} message={message} warning={warning} reason={reason} />}
         <Toolbar />
         <div className="main">
           <div className="canvas">

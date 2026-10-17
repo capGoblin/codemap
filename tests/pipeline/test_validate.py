@@ -141,3 +141,14 @@ def test_validate_records_orphan_drop() -> None:
     r = validate_graph(tools(), nodes, [], POINTS)
     assert r.dropped == 2
     assert any("parent was dropped" in d for d in r.drops)
+
+
+def test_phase_keeps_effects_no_step_covers() -> None:
+    late = Anchor(file="app/documents.py", start_line=14, end_line=14, symbol="Doc")
+    first = Anchor(file="app/documents.py", start_line=13, end_line=13, symbol="insert")
+    covered, uncovered = db_write(first), db_write(late)
+    phase = mk("p", (ACCEPT,), effects=(covered, uncovered))
+    step = mk("s", (first,), level=1, parent="p", effects=(covered,))
+    r = validate_graph(tools(), [phase, step], [], POINTS)
+    (out,) = [n for n in r.nodes if n.id == "p"]
+    assert out.effects == (covered, uncovered)

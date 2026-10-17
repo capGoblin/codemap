@@ -31,11 +31,13 @@ class Budget:
         price_in: float,
         price_out: float,
         clock: Callable[[], float] = time.monotonic,
+        cancel: threading.Event | None = None,
     ) -> None:
         self._limits = limits
         self._price_in = price_in
         self._price_out = price_out
         self._clock = clock
+        self._cancel = cancel
         self._start = clock()
         self._lock = threading.Lock()
         self._input = 0
@@ -70,6 +72,9 @@ class Budget:
         return (self._input * self._price_in + self._output * self._price_out) / 1_000_000
 
     def check(self) -> None:
+        """Raise before a model call when a limit is hit or the user cancelled."""
+        if self._cancel is not None and self._cancel.is_set():
+            raise LimitReached("cancelled")
         with self._lock:
             lim = self._limits
             if self._clock() - self._start >= lim.wall_seconds:

@@ -45,3 +45,14 @@ def test_budget_tool_call_limit() -> None:
     with pytest.raises(LimitReached) as exc:
         budget.check()
     assert "tool" in exc.value.reason
+
+
+def test_cancel_event_raises_cancelled() -> None:
+    import threading
+
+    cancel = threading.Event()
+    budget = Budget(LIMITS, price_in=0, price_out=0, cancel=cancel)
+    budget.check()
+    cancel.set()
+    with pytest.raises(LimitReached, match="cancelled"):
+        budget.check()

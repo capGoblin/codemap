@@ -54,3 +54,15 @@ def test_detail_outside_repo_does_not_raise() -> None:
     bad = Anchor(file="../x.py", start_line=1, end_line=2, symbol="x")
     (d,) = build_detail(make_tools(), node(bad), [])
     assert d.code == "" and d.signature.startswith("unavailable: ")
+
+
+def test_detail_calls_use_overlap_skip_rejected_and_dedupe() -> None:
+    spelled = UPLOAD.model_copy(update={"symbol": "Api.upload", "start_line": 6})
+    other = Anchor(file="app/queue.py", start_line=6, end_line=7, symbol="enqueue")
+    hops = [
+        hop(),
+        hop().model_copy(update={"id": "h2", "caller": spelled}),
+        hop().model_copy(update={"id": "h3", "callee": other, "verdict": "rejected"}),
+    ]
+    (d,) = build_detail(make_tools(), node(UPLOAD), hops)
+    assert d.calls == ("accept_document",)

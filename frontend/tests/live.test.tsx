@@ -60,6 +60,12 @@ describe("StatusBanner", () => {
     expect(screen.getByTestId("status-banner").textContent).toContain("partial");
     expect(screen.getByTestId("status-banner").textContent).toContain("model gave up on p2");
   });
+  it("shows the finished reason before the last warning", () => {
+    render(<StatusBanner status="failed" message="x" warning="dropped L1 s" reason="walk: model error: 401" />);
+    const text = screen.getByTestId("status-banner").textContent;
+    expect(text).toContain("walk: model error: 401");
+    expect(text).not.toContain("dropped L1 s");
+  });
   it("shows the latest message while running and nothing when complete", () => {
     const { container, rerender } = render(<StatusBanner status="running" message="walking" warning={null} />);
     expect(screen.getByTestId("progress-strip").textContent).toBe("walking");
@@ -90,5 +96,22 @@ describe("setGraph", () => {
     act(() => useStore.getState().setGraph(lazyGraph()));
     expect([...useStore.getState().openIds]).toEqual(["p"]);
     expect(useStore.getState().cameraRequest).toBeNull();
+  });
+});
+
+describe("eager phase without steps", () => {
+  it("shows the reason and retries through expand", async () => {
+    const p = { ...node("p", 0, null, 0), warnings: ["steps unavailable: rate limited"] };
+    setup({ ...fixtureGraph, trace: { ...fixtureGraph.trace, mode: "eager" }, nodes: [p], edges: [] });
+    fireEvent.click(await screen.findByTestId("node-p"));
+    expect(await screen.findByText(/steps unavailable: rate limited/)).toBeTruthy();
+    const merged: TraceGraph = {
+      ...fixtureGraph, trace: { ...fixtureGraph.trace, mode: "eager" },
+      nodes: [p, node("p.s1", 1, "p", 0)], edges: [],
+    };
+    expandNode.mockResolvedValueOnce(merged);
+    fireEvent.click(screen.getByText("Retry"));
+    expect(expandNode).toHaveBeenCalledWith("fixture", "p");
+    expect(await screen.findByTestId("node-p.s1")).toBeTruthy();
   });
 });

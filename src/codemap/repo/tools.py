@@ -10,12 +10,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from codemap.repo.ignore import RepoIgnore
-from codemap.repo.sandbox import OutsideRepoError, resolve_inside
+from codemap.repo.sandbox import OutsideRepoError, canonical_rel, resolve_inside
 
 if TYPE_CHECKING:
     from codemap.repo.index import SymbolIndex
 
 PAGE_LINES = 400
+MAX_SEARCH_RESULTS = 200
 MAX_LINE_CHARS = 2000
 BINARY_SNIFF_BYTES = 8192
 
@@ -55,7 +56,8 @@ class RepoTools:
     def _resolve_visible(self, path: str, *, is_dir: bool = False) -> Path:
         """Resolve inside the root and refuse ignored paths."""
         real = resolve_inside(self._root, path)
-        rel = self._rel(real)
+        rel = canonical_rel(self._root, self._rel(real))
+        real = self._root / rel
         if rel != "." and self._ignore.is_ignored(rel + "/" if is_dir else rel):
             raise OutsideRepoError(f"path is ignored: {rel}")
         return real
@@ -120,8 +122,13 @@ class RepoTools:
     @_safe
     def search(self, pattern: str, glob: str | None = None, max_results: int = 50) -> str:
         re.compile(pattern)
+        max_results = max(1, min(max_results, MAX_SEARCH_RESULTS))
+        if glob and glob.lstrip().startswith("!"):
+            return "error: glob must not start with '!'"
         rows = (
-            self._search_rg(pattern, glob) if shutil.which("rg") else self._search_py(pattern, glob)
+            self._search_rg(pattern, glob, max_results)
+            if shutil.which("rg")
+            else self._search_py(pattern, glob)
         )
         found = []
         for row in rows:
@@ -133,26 +140,33 @@ class RepoTools:
     def _row(self, rel: str, number: int, text: str) -> str:
         return f"{rel}:{number}: {text.rstrip()[:MAX_LINE_CHARS]}"
 
-    def _search_rg(self, pattern: str, glob: str | None) -> Iterator[str]:
-        cmd = ["rg", "--json", "--no-require-git", "-e", pattern]
+    def _search_rg(self, pattern: str, glob: str | None, limit: int) -> Iterator[str]:
+        # A model glob can only narrow the search. Never add --no-ignore or --hidden, and
+        # filter every hit through RepoIgnore below, because an rg --glob overrides rg's ignores.
+        # --sort path keeps the order stable (the model-call cache replays it) and lets us stop
+        # reading at `limit` hits.
+        cmd = ["rg", "--json", "--no-require-git", "--sort", "path", f"--max-count={limit}"]
+        cmd += ["-e", pattern]
         if glob:
-            cmd += ["--glob", glob]
+            cmd.append(f"--glob={glob}")
         cmd.append(".")
-        proc = subprocess.run(cmd, cwd=self._root, capture_output=True, text=True, check=False)
-        found: list[tuple[str, int, str]] = []
-        for raw in proc.stdout.splitlines():
-            event = json.loads(raw)
-            if event.get("type") != "match":
-                continue
-            data = event["data"]
-            rel = Path(data["path"]["text"]).as_posix().removeprefix("./")
-            if self._ignore.is_ignored(rel) or "text" not in data["lines"]:
-                continue
-            found.append((rel, data["line_number"], data["lines"]["text"]))
-        # rg runs in parallel, so its order varies. Sort so the same search gives the same text
-        # and the model-call cache can replay it.
-        for rel, number, text in sorted(found, key=lambda f: f[:2]):
-            yield self._row(rel, number, text)
+        proc = subprocess.Popen(  # noqa: S603
+            cmd, cwd=self._root, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True
+        )
+        try:
+            assert proc.stdout is not None
+            for raw in proc.stdout:
+                event = json.loads(raw)
+                if event.get("type") != "match":
+                    continue
+                data = event["data"]
+                rel = Path(data["path"]["text"]).as_posix().removeprefix("./")
+                if self._ignore.is_ignored(rel) or "text" not in data["lines"]:
+                    continue
+                yield self._row(rel, data["line_number"], data["lines"]["text"])
+        finally:
+            proc.kill()
+            proc.wait()
 
     def _search_py(self, pattern: str, glob: str | None) -> Iterator[str]:
         regex = re.compile(pattern)
@@ -170,7 +184,7 @@ class RepoTools:
 
     def _grep_file(self, regex: re.Pattern[str], rel: str) -> Iterator[str]:
         try:
-            file = resolve_inside(self._root, rel)
+            file = self._resolve_visible(rel)  # a symlink may point at an ignored file
             if _is_binary(file):
                 return
             with file.open(encoding="utf-8", errors="replace") as handle:

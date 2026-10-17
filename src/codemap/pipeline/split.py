@@ -8,26 +8,18 @@ because `split_steps` runs on worker threads.
 import re
 import uuid
 from collections.abc import Collection, Sequence
-from typing import Any
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, model_validator
 
 from codemap.agents.limits import LimitReached
 from codemap.agents.loop import run_tool_loop
 from codemap.agents.model import ModelError
+from codemap.agents.schema import tolerant_list
 from codemap.domain.models import Anchor, Edge, EdgeKind, Effect, Hop, Node
 from codemap.domain.rules import anchor_contains, assign_effects
 from codemap.pipeline.context import TraceContext, prompt
 from codemap.repo.anchors import with_hash
 from codemap.repo.tools import RepoTools
-
-
-def _unwrap_item(value: Any) -> Any:
-    """MiniMax sometimes sends a list as {"item": x} or {"item": [x, y]}. Unwrap it."""
-    if isinstance(value, dict) and set(value) == {"item"}:
-        inner = value["item"]
-        return inner if isinstance(inner, list) else [inner]
-    return value
 
 
 class PhaseDraft(BaseModel):
@@ -45,7 +37,7 @@ class PhasesSubmit(BaseModel):
 
     phases: list[PhaseDraft]
 
-    _unwrap = field_validator("phases", mode="before")(_unwrap_item)
+    _unwrap = tolerant_list("phases")
 
     @model_validator(mode="after")
     def _check_spans(self) -> "PhasesSubmit":
@@ -110,13 +102,13 @@ class StepDraft(BaseModel):
     anchors: list[Anchor]
     parallel_group: int | None = None
 
-    _unwrap = field_validator("anchors", mode="before")(_unwrap_item)
+    _unwrap = tolerant_list("anchors")
 
 
 class StepsSubmit(BaseModel):
     steps: list[StepDraft]
 
-    _unwrap = field_validator("steps", mode="before")(_unwrap_item)
+    _unwrap = tolerant_list("steps")
 
 
 def _steps_schema(phase: Node) -> type[StepsSubmit]:

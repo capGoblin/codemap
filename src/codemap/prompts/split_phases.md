@@ -9,7 +9,7 @@ You get the ordered points of a recorded execution path, one per line: `index: f
 
 # Output (submit)
 
-For each phase give: title, does (1 to 3 sentences), first and last path index, input (data type and key fields), output (data type and key fields), and boundary_reason (why the phase starts and ends here: name the code structure or the signal).
+For each phase give: title, does (1 to 3 sentences), `start` and `end` (the first and last path index), input (data type and key fields), output (data type and key fields), and boundary_reason (why the phase starts and ends here: name the code structure or the signal).
 
 # Rules
 

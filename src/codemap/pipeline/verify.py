@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from codemap.agents.limits import LimitReached
 from codemap.agents.loop import run_tool_loop
 from codemap.agents.model import ModelError
+from codemap.agents.schema import tolerant_list
 from codemap.domain.models import Anchor, Hop, VerifierResult
 from codemap.pipeline.context import TraceContext, prompt, read_tools
 from codemap.repo.anchors import check_anchor, with_hash
@@ -18,6 +19,8 @@ class VerdictSubmit(BaseModel):
     evidence: str
     evidence_anchors: list[Anchor] = []
     suggested_callee: Anchor | None = None
+
+    _unwrap = tolerant_list("evidence_anchors")
 
 
 def _identity(anchor: Anchor | None) -> str:

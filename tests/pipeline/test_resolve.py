@@ -7,7 +7,7 @@ import pytest
 from codemap.agents.limits import Budget, Limits
 from codemap.agents.model import ModelError
 from codemap.pipeline.context import TraceContext
-from codemap.pipeline.resolve import parse_direct_entry, resolve_entry
+from codemap.pipeline.resolve import ResolveLimitError, parse_direct_entry, resolve_entry
 from codemap.repo.ignore import RepoIgnore
 from codemap.repo.index import MemorySymbolCache, SymbolIndex
 from codemap.repo.tools import RepoTools
@@ -102,12 +102,6 @@ def test_more_than_five_candidates_rejected_then_retry(repo: Path) -> None:
     assert len(resolve_entry(make_ctx(repo, model), "upload")) == 1
 
 
-def test_limit_reached_returns_empty(repo: Path) -> None:
-    ctx = make_ctx(repo, ScriptedModel([]), Limits(3600, 10**9, 100.0, 0))
-    ctx.budget.count_tool_call()
-    assert resolve_entry(ctx, "anything") == []
-
-
 def test_model_error_propagates(repo: Path) -> None:
     class Failing:
         def respond(self, **_: Any) -> Any:
@@ -115,3 +109,28 @@ def test_model_error_propagates(repo: Path) -> None:
 
     with pytest.raises(ModelError):
         resolve_entry(make_ctx(repo, Failing()), "anything")
+
+
+def test_limit_reached_raises_resolve_limit(repo: Path) -> None:
+    ctx = make_ctx(repo, ScriptedModel([]), Limits(3600, 10**9, 100.0, 0))
+    ctx.budget.count_tool_call()
+    with pytest.raises(ResolveLimitError, match="tool calls"):
+        resolve_entry(ctx, "anything")
+
+
+def test_item_wrapped_candidates_accepted(repo: Path) -> None:
+    wrapped = resp(
+        tool_use("submit", {"candidates": {"item": cand("app/api.py", 5, 8, "upload")}}, "s1")
+    )
+    result = resolve_entry(make_ctx(repo, ScriptedModel([wrapped])), "upload")
+    assert [c.anchor.file for c in result] == ["app/api.py"]
+
+
+def test_item_wrapped_verdict_anchors_accepted() -> None:
+    from codemap.pipeline.verify import VerdictSubmit
+
+    anchor = {"file": "a.py", "start_line": 1, "end_line": 2, "symbol": "f"}
+    v = VerdictSubmit.model_validate(
+        {"verdict": "confirmed", "evidence": "e", "evidence_anchors": {"item": anchor}}
+    )
+    assert len(v.evidence_anchors) == 1

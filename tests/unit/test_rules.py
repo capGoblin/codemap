@@ -112,3 +112,40 @@ def test_anchor_key_and_drop_ratio():
     assert anchor_key(anc("a.py", 1, 2, "s", "h")) == ("a.py", 1, 2, "s")
     assert drop_ratio(3, 1) == 0.25
     assert drop_ratio(0, 0) == 0.0
+
+
+def test_path_points_joins_symbol_spellings_and_ranges():
+    """Real failure: Session.build_system as callee, build_system as the next caller."""
+    e = anc("s.py", 1, 5, "run")
+    callee = anc("chat-agent/session.py", 63, 88, "Session.build_system")
+    caller = anc("chat-agent/session.py", 63, 88, "build_system")
+    shifted = anc("chat-agent/session.py", 65, 80, "build_system")
+    g1, g2 = anc("chat-agent/r.py", 1, 9, "gated_retrieve"), anc("chat-agent/r.py", 20, 30, "should_retrieve")
+    points = path_points(e, [hop(e, callee), hop(caller, g1), hop(shifted, g2)])
+    assert [p.symbol for p in points] == [
+        "run",
+        "Session.build_system",
+        "gated_retrieve",
+        "should_retrieve",
+    ]
+
+
+def test_path_points_does_not_join_other_files_or_disjoint_ranges():
+    e = anc("a.py", 1, 5, "e")
+    b = anc("a.py", 10, 20, "b")
+    other = anc("c.py", 10, 20, "b")
+    c = anc("a.py", 30, 40, "c")
+    assert [p.symbol for p in path_points(e, [hop(e, b), hop(other, c)])] == ["e", "b"]
+
+
+def test_unreachable_hops_lists_dangling():
+    from codemap.domain.rules import unreachable_hops
+
+    e, a, x, y = (
+        anc("f.py", 1, 5, "e"),
+        anc("f.py", 10, 15, "a"),
+        anc("f.py", 50, 60, "x"),
+        anc("f.py", 70, 80, "y"),
+    )
+    hops = [hop(e, a), hop(x, y)]
+    assert [h.caller.symbol for h in unreachable_hops(path_points(e, hops), hops)] == ["x"]

@@ -208,3 +208,25 @@ def test_log_redacts_token(tmp_path: Path) -> None:
     text = (tmp_path / ".codemap" / "logs" / "codemap.log").read_text()
     assert "sk-secret" not in text
     assert text.count("***") >= 3
+
+
+def test_cancel_stops_a_running_trace_as_partial(tmp_path: Path) -> None:
+    import threading
+
+    started, release = threading.Event(), threading.Event()
+
+    class Blocking:
+        def respond(self, **_: Any) -> Any:
+            started.set()
+            release.wait(30)
+            raise ModelError("unblocked")
+
+    svc, _ = make(tmp_path, Blocking())
+    entry = svc.resolve("app/api.py:upload")[0]
+    trace_id = svc.start_trace("q", entry, "eager")
+    assert started.wait(10)
+    svc.cancel(trace_id)
+    release.set()
+    assert svc.wait(trace_id, 5) == "partial"
+    last = svc.events(trace_id)[-1][1]
+    assert last.kind == "finished" and last.data == {"status": "partial"}

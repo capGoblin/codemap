@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 
 from codemap.domain.models import Anchor, FunctionDetail, Hop, Node
-from codemap.domain.rules import anchor_key
+from codemap.domain.rules import anchors_overlap
 from codemap.repo.sandbox import OutsideRepoError
 from codemap.repo.tools import RepoTools
 
@@ -22,8 +22,12 @@ def _signature(tools: RepoTools, anchor: Anchor) -> str:
 
 
 def _detail(tools: RepoTools, anchor: Anchor, hops: Sequence[Hop]) -> FunctionDetail:
-    key = anchor_key(anchor)
-    calls = tuple(h.callee.symbol for h in hops if anchor_key(h.caller) == key)
+    names = (
+        h.callee.symbol
+        for h in hops
+        if h.verdict != "rejected" and anchors_overlap(h.caller, anchor)
+    )
+    calls = tuple(dict.fromkeys(names))
     try:
         lines = tools.file_text(anchor.file).splitlines()
     except (OSError, OutsideRepoError) as exc:

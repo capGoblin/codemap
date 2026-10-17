@@ -97,17 +97,56 @@ def test_trace_model_error_exit_2(repo: Path, monkeypatch: pytest.MonkeyPatch) -
     assert "codemap doctor" in result.output
 
 
-def test_trace_ctrl_c_marks_partial(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_trace_ctrl_c_cancels_and_marks_partial(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     use_model(monkeypatch, RoutedModel())
+    real_wait, real_cancel = Service.wait, Service.cancel
+    calls: list[tuple[str, float | None]] = []
 
-    def interrupt(self: Service, trace_id: str, timeout: float | None = None) -> str:
-        raise KeyboardInterrupt
+    def wait(self: Service, trace_id: str, timeout: float | None = None) -> str:
+        if not calls:
+            calls.append(("interrupt", timeout))
+            raise KeyboardInterrupt
+        calls.append(("wait", timeout))
+        return real_wait(self, trace_id, timeout)
 
-    monkeypatch.setattr(Service, "wait", interrupt)
+    def cancel(self: Service, trace_id: str) -> None:
+        calls.append(("cancel", None))
+        real_cancel(self, trace_id)
+
+    monkeypatch.setattr(Service, "wait", wait)
+    monkeypatch.setattr(Service, "cancel", cancel)
     result = run(repo, "trace", "app/api.py:upload", "--pick", "1")
     assert result.exit_code == 130
+    assert [c[0] for c in calls[:3]] == ["interrupt", "cancel", "wait"]
+    assert calls[2][1] == 5
     monkeypatch.undo()
     assert [t.status for t in Service(repo, Settings(), None).list_traces()] == ["partial"]
+
+
+def test_trace_prints_reason_when_not_complete(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    use_model(monkeypatch, BrokenModel(ModelError("token expired")))
+    result = run(repo, "trace", "app/api.py:upload", "--pick", "1", "--no-open")
+    assert "reason: " in result.output and "token expired" in result.output
+    assert "codemap doctor" in result.output
+
+
+def test_trace_resolve_limit_is_not_no_entry_point(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from codemap.service import ResolveLimitError
+
+    use_model(monkeypatch, RoutedModel())
+
+    def limited(self: Service, question: str) -> list[Any]:
+        raise ResolveLimitError("max_turns")
+
+    monkeypatch.setattr(Service, "resolve", limited)
+    result = run(repo, "trace", "the upload system")
+    assert result.exit_code != 0
+    assert "resolve hit a limit" in result.output and "max_turns" in result.output
+    assert "no entry point" not in result.output
 
 
 def test_open_lists_traces(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:

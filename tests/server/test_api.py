@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 
 import httpx
 from fastapi.testclient import TestClient
@@ -152,3 +153,49 @@ def test_stream_ends_for_quiet_non_running_trace(service: Service, make_trace: M
         return [e async for e in event_stream(service, trace_id, last_id)]
 
     assert asyncio.run(asyncio.wait_for(drain(), 5)) == []
+
+
+class _StepsFail:
+    """Fail every step split. Walk and phase split answers come from the scripted model."""
+
+    def __init__(self, inner: object) -> None:
+        self.inner = inner
+
+    def respond(self, *, system: str, **kw: Any) -> Any:
+        from codemap.agents.model import ModelError
+        from codemap.pipeline.context import prompt
+
+        if system == prompt("split_steps"):
+            raise ModelError("rate limited")
+        return self.inner.respond(system=system, **kw)  # type: ignore[attr-defined]
+
+
+def _failed_trace(service: Service, mode: str) -> str:
+    from conftest import RoutedModel as Good
+
+    service._model = _StepsFail(Good())  # type: ignore[assignment]
+    entry = service.resolve("app/api.py:upload")[0]
+    trace_id = service.start_trace("q", entry, mode)  # type: ignore[arg-type]
+    assert service.wait(trace_id, 30) == ("partial" if mode == "eager" else "complete")
+    return trace_id
+
+
+def test_expand_failure_is_502_with_reason(client: TestClient, service: Service) -> None:
+    trace_id = _failed_trace(service, "lazy")
+    phase = client.get(f"/api/v1/traces/{trace_id}").json()["nodes"][0]
+    r = client.post(f"/api/v1/traces/{trace_id}/nodes/{phase['id']}/expand")
+    assert r.status_code == 502
+    assert "rate limited" in r.json()["detail"]
+
+
+def test_expand_eager_phase_without_steps_can_retry(client: TestClient, service: Service) -> None:
+    from conftest import RoutedModel as Good
+
+    trace_id = _failed_trace(service, "eager")
+    nodes = client.get(f"/api/v1/traces/{trace_id}").json()["nodes"]
+    assert all(n["level"] == 0 for n in nodes)
+    assert any("steps unavailable" in w for w in nodes[0]["warnings"])
+    service._model = Good()  # type: ignore[assignment]
+    r = client.post(f"/api/v1/traces/{trace_id}/nodes/{nodes[0]['id']}/expand")
+    assert r.status_code == 200
+    assert {"accept", "queue"} <= {n["title"] for n in r.json()["nodes"]}
