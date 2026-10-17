@@ -1,8 +1,8 @@
-"""Split the recorded path into phases (level 0) and steps (level 1).
+"""Split the recorded path into phases (level 0) and children of any node (level 1, 2, ...).
 
-The model proposes titles, spans and step anchors. Code sets phase anchors and all effects,
-and drops step anchors that lie off the phase. Nothing here emits events or touches the store,
-because `split_steps` runs on worker threads.
+The model proposes titles, summaries, spans and child anchors. Code sets phase anchors and all
+effects, and drops child anchors that lie off the parent. Nothing here emits events or touches
+the store, because `split_children` runs on worker threads.
 """
 
 import re
@@ -21,15 +21,37 @@ from codemap.pipeline.context import TraceContext, prompt
 from codemap.repo.anchors import with_hash
 from codemap.repo.tools import RepoTools
 
+MAX_TITLE_WORDS = 4
+MAX_SUMMARY_WORDS = 14
+MAX_PHASES = 7
+
+
+def _words(text: str) -> int:
+    """Word count by whitespace. A trailing parenthesised code name does not count."""
+    return len(re.sub(r"\([^)]*\)", " ", text).split())
+
+
+def _check_lengths(title: str, summary: str) -> None:
+    if _words(title) > MAX_TITLE_WORDS:
+        raise ValueError(f"title {title!r} has more than {MAX_TITLE_WORDS} words")
+    if _words(summary) > MAX_SUMMARY_WORDS:
+        raise ValueError(f"summary has more than {MAX_SUMMARY_WORDS} words: {summary!r}")
+
 
 class PhaseDraft(BaseModel):
     title: str
+    summary: str = ""
     does: str
     input: str
     output: str
     boundary_reason: str
     start: int
     end: int
+
+    @model_validator(mode="after")
+    def _check_words(self) -> "PhaseDraft":
+        _check_lengths(self.title, self.summary)
+        return self
 
 
 class PhasesSubmit(BaseModel):
@@ -41,6 +63,12 @@ class PhasesSubmit(BaseModel):
 
     @model_validator(mode="after")
     def _check_spans(self) -> "PhasesSubmit":
+        if not 1 <= len(self.phases) <= MAX_PHASES:
+            raise ValueError(
+                f"give 1 to {MAX_PHASES} phases, not {len(self.phases)}. "
+                "Fold plumbing (auth, validation, idempotency, outbox, job runner, status "
+                "updates) into the phase it serves."
+            )
         expected = 0
         for i, p in enumerate(self.phases):
             if p.end < p.start:
@@ -55,7 +83,8 @@ def _bare_name(title: str, symbols: Collection[str]) -> str | None:
     """The symbol when `title` is nothing but that symbol (or its last dotted part)."""
     norm = title.strip().casefold()
     for symbol in symbols:
-        if norm in {symbol.casefold(), symbol.rsplit(".", 1)[-1].casefold()}:
+        last = symbol.rsplit(".", 1)[-1].casefold()
+        if norm in {symbol.casefold(), last, last.replace("_", " ")}:
             return symbol
     return None
 
@@ -65,8 +94,8 @@ def _title_rule(kind: str, index: int, title: str, symbols: Collection[str]) -> 
         return None
     return (
         f"{kind} {index}: title {title!r} is only the function name {symbol!r}. "
-        f"Rule: a title says what the {kind} does, in a few words, and may add the code name "
-        f"in parentheses, for example 'Recall memories ({symbol})'."
+        f"Rule: a title says what the {kind} does in at most {MAX_TITLE_WORDS} words, "
+        f"for example 'Recall memories'. The code name goes in the details, not the title."
     )
 
 
@@ -93,8 +122,9 @@ def _phases_schema(points: Sequence[Anchor]) -> type[PhasesSubmit]:
     return Covering
 
 
-class StepDraft(BaseModel):
+class ChildDraft(BaseModel):
     title: str
+    summary: str = ""
     does: str
     input: str
     output: str
@@ -104,23 +134,28 @@ class StepDraft(BaseModel):
 
     _unwrap = tolerant_list("anchors")
 
+    @model_validator(mode="after")
+    def _check_words(self) -> "ChildDraft":
+        _check_lengths(self.title, self.summary)
+        return self
 
-class StepsSubmit(BaseModel):
-    steps: list[StepDraft]
+
+class ChildrenSubmit(BaseModel):
+    steps: list[ChildDraft]
 
     _unwrap = tolerant_list("steps")
 
 
-def _steps_schema(phase: Node) -> type[StepsSubmit]:
-    """A schema that also rejects a step title that is only a function name."""
-    symbols = {a.symbol for a in phase.anchors}
+def _children_schema(parent: Node) -> type[ChildrenSubmit]:
+    """A schema that also rejects a child title that is only a function name."""
+    symbols = {a.symbol for a in parent.anchors}
 
-    class Titled(StepsSubmit):
+    class Titled(ChildrenSubmit):
         @model_validator(mode="after")
         def _check_titles(self) -> "Titled":
-            for i, step in enumerate(self.steps):
-                names = symbols | {a.symbol for a in step.anchors}
-                if (problem := _title_rule("step", i, step.title, names)) is not None:
+            for i, child in enumerate(self.steps):
+                names = symbols | {a.symbol for a in child.anchors}
+                if (problem := _title_rule("step", i, child.title, names)) is not None:
                     raise ValueError(problem)
             return self
 
@@ -165,6 +200,7 @@ def split_phases(
                 parent_id=None,
                 order=order,
                 title=draft.title,
+                summary=draft.summary,
                 does=draft.does,
                 input=draft.input,
                 output=draft.output,
@@ -227,14 +263,32 @@ def phase_code(tools: RepoTools, phase: Node) -> str:
     return "\n\n".join(blocks)
 
 
-def split_steps(
-    ctx: TraceContext, phase: Node, effects: list[Effect]
+def subpath_points(node: Node, hops: Sequence[Hop]) -> list[Anchor]:
+    """Path points whose anchors lie inside the node's anchors, in first-seen order.
+
+    A hop's caller and callee are both points. Rejected hops are skipped.
+    """
+    points: list[Anchor] = []
+    for h in hops:
+        if h.verdict == "rejected":
+            continue
+        for anchor in (h.caller, h.callee):
+            if _inside(node, anchor) and anchor not in points:
+                points.append(anchor)
+    return points
+
+
+def split_children(
+    ctx: TraceContext, parent: Node, points: list[Anchor], effects: list[Effect]
 ) -> tuple[list[Node], str | None]:
-    """Return (steps, failure reason). Safe to call from a worker thread."""
+    """Return (children at parent.level + 1, failure reason). Safe on a worker thread."""
+    kind = "Phase" if parent.level == 0 else "Step"
     user = (
-        f"Phase: {phase.title}\n{phase.does}\nInput: {phase.input}\nOutput: {phase.output}\n\n"
-        f"Phase anchors:\n{_list_anchors(phase.anchors)}\n\n"
-        f"Phase code:\n{phase_code(ctx.tools, phase)}"
+        f"{kind}: {parent.title}\n{parent.summary}\n{parent.does}\n"
+        f"Input: {parent.input}\nOutput: {parent.output}\n\n"
+        f"Parent anchors:\n{_list_anchors(parent.anchors)}\n\n"
+        f"Sub-path points:\n{_list_anchors(points)}\n\n"
+        f"Parent code:\n{phase_code(ctx.tools, parent)}"
     )
     try:
         sub = run_tool_loop(
@@ -242,24 +296,25 @@ def split_steps(
             system=prompt("split_steps"),
             user=user,
             tools=[],
-            submit_schema=_steps_schema(phase),
+            submit_schema=_children_schema(parent),
             budget=ctx.budget,
             max_turns=STEP_MAX_TURNS,
         )
     except (LimitReached, ModelError) as exc:
         return [], str(exc)
-    steps: list[Node] = []
+    children: list[Node] = []
     for draft in sub.steps:
-        kept = tuple(with_hash(ctx.tools, a) for a in draft.anchors if _inside(phase, a))
+        kept = tuple(with_hash(ctx.tools, a) for a in draft.anchors if _inside(parent, a))
         if not kept:
             continue
-        steps.append(
+        children.append(
             Node(
                 id=_new_id(),
-                level=1,
-                parent_id=phase.id,
-                order=len(steps),
+                level=parent.level + 1,
+                parent_id=parent.id,
+                order=len(children),
                 title=draft.title,
+                summary=draft.summary,
                 does=draft.does,
                 input=draft.input,
                 output=draft.output,
@@ -269,7 +324,14 @@ def split_steps(
                 parallel_group=draft.parallel_group,
             )
         )
-    return steps, None
+    return children, None
+
+
+def split_steps(
+    ctx: TraceContext, phase: Node, effects: list[Effect]
+) -> tuple[list[Node], str | None]:
+    """Thin wrapper until run.py passes real sub-path points."""
+    return split_children(ctx, phase, list(phase.anchors), effects)
 
 
 def _layers(steps: Sequence[Node]) -> list[list[Node]]:
