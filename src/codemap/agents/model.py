@@ -58,7 +58,7 @@ class AnthropicModel:
         except anthropic.AnthropicError as exc:
             raise ModelError(f"{type(exc).__name__}: {exc}") from exc
         return ModelResponse(
-            content=[_block(b.model_dump()) for b in msg.content],
+            content=[_block(b.model_dump()) for b in msg.content or []],
             stop_reason=msg.stop_reason or "end_turn",
             input_tokens=msg.usage.input_tokens,
             output_tokens=msg.usage.output_tokens,

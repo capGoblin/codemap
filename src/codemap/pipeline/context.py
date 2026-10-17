@@ -29,19 +29,31 @@ class TraceContext:
     Split workers on other threads must not call `emit`. They share the store connection
     only through the caches, and its lock makes that safe.
 
-    `cancel` is shared with `budget`, so the tool loop stops before its next model call.
+    `walk_budget` pays for the walks, hop checks and entry resolution. `build_budget` pays for
+    splits, the effect pass and explain, so a spent walk never starves them. Both share `cancel`,
+    so the tool loop stops before its next model call.
     """
 
     root: Path
     tools: RepoTools
     model: ChatModel
-    budget: Budget
+    walk_budget: Budget
+    build_budget: Budget
     store: TraceStore
     verdicts: SqliteVerdictCache
     settings: Settings
     emit: Callable[[Event], object]
     trace_id: str
     cancel: threading.Event = field(default_factory=threading.Event)
+
+    def totals(self) -> tuple[int, int, float]:
+        """Input tokens, output tokens and cost over both budgets."""
+        both = (self.walk_budget, self.build_budget)
+        return (
+            sum(b.input_tokens for b in both),
+            sum(b.output_tokens for b in both),
+            sum(b.cost_usd for b in both),
+        )
 
 
 def _schema(properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
@@ -107,8 +119,16 @@ def build_context(
         max_cost_usd=settings.max_cost_usd,
         max_tool_calls=settings.max_tool_calls,
     )
+    build_limits = Limits(
+        wall_seconds=settings.max_wall_seconds,
+        max_tokens=settings.build_max_tokens,
+        max_cost_usd=settings.max_cost_usd,
+        max_tool_calls=settings.build_max_tool_calls,
+    )
     cancel = cancel or threading.Event()
-    budget = Budget(limits, settings.price_in_per_mtok, settings.price_out_per_mtok, cancel=cancel)
+    prices = (settings.price_in_per_mtok, settings.price_out_per_mtok)
+    walk_budget = Budget(limits, *prices, cancel=cancel)
+    build_budget = Budget(build_limits, *prices, cancel=cancel)
     inner = model or AnthropicModel(
         settings.anthropic_base_url,
         settings.anthropic_auth_token.get_secret_value(),
@@ -121,7 +141,8 @@ def build_context(
         root=root,
         tools=tools,
         model=CachedModel(inner, SqliteCallCache(conn)),
-        budget=budget,
+        walk_budget=walk_budget,
+        build_budget=build_budget,
         store=store,
         verdicts=SqliteVerdictCache(conn),
         settings=settings,

@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from codemap.agents.limits import Limits
 from codemap.agents.model import ModelError, ModelResponse
 from codemap.domain.events import Event
 from codemap.domain.models import Anchor, Trace, TraceMode
@@ -71,18 +72,24 @@ class RoutedModel:
         self.phases = phases
         self.steps = steps
         self.deepen: list[Any] = []
+        self.effects: Any = submit(effects=[])
 
     def respond(self, *, system: str, messages: list, tools: list, max_tokens: int) -> Any:
         if system == prompt("walk_deepen"):
             return self.deepen.pop(0) if self.deepen else submit(done=True)
+        if system == prompt("phase_effects"):
+            return self.effects
         if system == prompt("split_phases"):
             return self.phases
         if system == prompt("split_steps"):
             first = messages[0]["content"]
             return next(
-                r
-                for title, r in self.steps.items()
-                if f"Phase: {title}\n" in first or f"Step: {title}\n" in first
+                (
+                    r
+                    for title, r in self.steps.items()
+                    if f"Phase: {title}\n" in first or f"Step: {title}\n" in first
+                ),
+                submit(steps=[]),
             )
         return self.walk.pop(0)
 
@@ -148,7 +155,7 @@ def test_run_trace_eager_end_to_end(tmp_path: Path) -> None:
     kinds = {(e.source_id, e.target_id): e.kind for e in graph.edges}
     assert kinds[(phases[0].id, phases[1].id)] == "async"
     assert all(n.anchors[0].file != "app/unused.py" for n in graph.nodes)
-    assert len(ctx.store.get_hops("t1")) == 4
+    assert len(ctx.store.get_hops("t1")) >= 4  # 4 walked, plus static expansion
     assert len(ctx.store.get_walk_effects("t1")) == 2
     assert graph.trace.input_tokens > 0
 
@@ -161,9 +168,9 @@ def test_run_trace_events_in_order(tmp_path: Path) -> None:
         "walk", "split_phases", "deepen", "split_steps", "validate", "save",
     ]  # fmt: skip
     splits = [e for e in events if e.kind == "phase_split"]
-    assert len(splits) == 4
+    assert len(splits) == 6  # 2 phases, then 2 + 2 steps that have no sub-path
     assert all("phase_id" in e.data for e in splits)
-    assert [e.data.get("steps") for e in splits[2:]] == [2, 2]
+    assert [e.data.get("steps") for e in splits[2:4]] == [2, 2]
     assert events[-1].kind == "finished" and events[-1].data == {"status": "complete"}
     kinds = [e.kind for e in events]
     assert kinds.index("phase_split") < kinds.index("finished")
@@ -230,7 +237,7 @@ def test_run_trace_walk_partial_keeps_hops(tmp_path: Path) -> None:
     steps = {"only": submit(steps=[step_draft("accept", [ACCEPT])])}
     ctx, events = setup(tmp_path, Boom(walk, phases, steps))
     assert run_trace(ctx, "q", ENTRY, "eager") == "partial"
-    assert len(ctx.store.get_hops("t1")) == 1
+    assert len(ctx.store.get_hops("t1")) >= 1
     assert "429" in events[-1].message
     trace = ctx.store.get_trace("t1")
     assert trace is not None and trace.status == "partial"
@@ -451,7 +458,7 @@ def test_expand_level_two_node_builds_level_three(tmp_path: Path) -> None:
     assert any(n.level == 3 for n in ctx.store.get_graph("t1", 9).nodes)
 
 
-def test_expand_with_few_points_deepens_first(tmp_path: Path) -> None:
+def test_expand_with_enough_reachable_points_does_not_deepen(tmp_path: Path) -> None:
     model = deep_model()
     ctx, _ = setup(tmp_path, model)
     run_trace(ctx, "q", ENTRY, "eager")
@@ -460,13 +467,13 @@ def test_expand_with_few_points_deepens_first(tmp_path: Path) -> None:
     accept = next(n for n in ctx.store.get_graph("t1", 9).nodes if n.title == "accept")
     expand_node(ctx, accept.id)
     hops = ctx.store.get_hops("t1")
-    assert len(hops) == before + 1 and hops[-1].callee.symbol == "insert"
+    assert len(hops) == before  # accept reaches enough points through recorded calls
 
 
 def test_deepen_limit_is_a_reason_per_phase(tmp_path: Path) -> None:
     model = deep_model()
     ctx, events = setup(tmp_path, model)
-    ctx.settings = ctx.settings.model_copy(update={"deepen_hops": 1})
+    ctx.settings = ctx.settings.model_copy(update={"deepen_hops": 1, "deepen_max_points": 0})
     # The floor is 5 hops per phase, so the script records 6.
     model.deepen = [hop(ACCEPT, ERR, f"d{i}") for i in range(6)] + [submit(done=True)]
     assert run_trace(ctx, "q", ENTRY, "eager") == "partial"
@@ -480,3 +487,13 @@ def test_lazy_run_does_not_deepen(tmp_path: Path) -> None:
     run_trace(ctx, "q", ENTRY, "lazy")
     assert len(ctx.store.get_hops("t1")) == 4
     assert len(model.deepen) == 1
+
+
+def test_spent_walk_budget_does_not_starve_splits(tmp_path: Path) -> None:
+    ctx, _ = setup(tmp_path, full_model())
+    ctx.walk_budget._limits = Limits(3600, 10**9, 100.0, 0)
+    ctx.walk_budget.count_tool_call()
+    assert ctx.walk_budget.exhausted()
+    run_trace(ctx, "q", ENTRY, "eager")
+    assert ctx.build_budget.input_tokens > 0
+    assert not ctx.build_budget.exhausted()

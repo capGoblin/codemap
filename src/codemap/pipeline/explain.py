@@ -111,7 +111,7 @@ def explain_node(
         user=user,
         tools=[],
         submit_schema=ExplainSubmit,
-        budget=ctx.budget,
+        budget=ctx.build_budget,
         max_turns=EXPLAIN_MAX_TURNS,
     )
     allowed = _citable(node, hops)

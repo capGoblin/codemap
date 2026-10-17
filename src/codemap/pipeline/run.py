@@ -9,13 +9,15 @@ model-call and symbol caches, which share the connection lock.
 import queue
 import threading
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 
 from codemap.domain.events import Event, EventKind
 from codemap.domain.models import Anchor, Bridge, Edge, Effect, Hop, Node, TraceMode, TraceStatus
 from codemap.domain.rules import (
     anchor_contains,
+    anchor_key,
+    anchors_overlap,
     assign_effects,
     drop_ratio,
     ordered_points,
@@ -23,6 +25,8 @@ from codemap.domain.rules import (
     side_hops,
 )
 from codemap.pipeline.context import TraceContext
+from codemap.pipeline.effects import phase_effects
+from codemap.pipeline.expand import expand_static
 from codemap.pipeline.split import (
     phase_edges,
     side_nodes,
@@ -36,6 +40,7 @@ from codemap.pipeline.walk import deepen_budgets, next_budget, walk_deepen, walk
 
 EAGER_MAX_LEVEL = 2  # levels 0, 1, 2 are built in a run; deeper ones on demand
 MIN_SUBPATH_POINTS = 3
+MIN_STATIC_POINTS = 3  # fewer new points than this and the LLM deepen walk runs as a fallback
 EXPAND_HOPS = 20
 POLL_SECONDS = 0.1
 
@@ -150,29 +155,59 @@ def _scope(node: Node, hops: list[Hop]) -> list[Anchor]:
     return [*node.anchors, *inside]
 
 
-def _eligible(node: Node, hops: list[Hop]) -> bool:
-    return node.level < EAGER_MAX_LEVEL and len(subpath_points(node, hops)) >= MIN_SUBPATH_POINTS
+def _blocked(node: Node, nodes: Sequence[Node]) -> list[Anchor]:
+    """Anchors of the other phases. A node's extent must not reach into them."""
+    own = node.anchors
+    return [
+        a
+        for n in nodes
+        if n.level == 0
+        for a in n.anchors
+        if not any(anchors_overlap(a, o) for o in own)
+    ]
+
+
+def _eligible(node: Node, hops: list[Hop], nodes: list[Node]) -> bool:
+    points = subpath_points(node, hops, _blocked(node, nodes))
+    return node.level < EAGER_MAX_LEVEL and len(points) >= MIN_SUBPATH_POINTS
 
 
 def _deepen_all(
     ctx: TraceContext, question: str, phases: list[Node], skeleton: list[Hop], reasons: list[str]
 ) -> tuple[list[Hop], list[Effect]]:
-    """Walk inside each phase in turn. Unused hops carry over to the next phase."""
+    """Expand each phase by static calls, then find its effects with one model call.
+
+    A phase that yields fewer than MIN_STATIC_POINTS new points falls back to the LLM walk
+    while the walk budget lasts. Unused fallback hops carry over to the next phase.
+    """
     budgets = deepen_budgets(phases, ctx.settings.deepen_hops)
     hops: list[Hop] = []
     effects: list[Effect] = []
+    stored = ctx.store.get_walk_effects(ctx.trace_id)
     carry = 0
     for phase, base in zip(phases, budgets, strict=True):
         if ctx.cancel.is_set():
             break
-        budget = next_budget(base, carry)
         known = [h for h in skeleton if any(anchor_contains(a, h.caller) for a in phase.anchors)]
-        walk = walk_deepen(ctx, phase, question, budget, known)
-        carry = max(0, budget - len(walk.hops))
-        hops.extend(walk.hops)
-        effects.extend(walk.effects)
-        if walk.partial_reason:
-            reasons.append(f"deepen {phase.title}: {walk.partial_reason}")
+        static = expand_static(
+            ctx, phase, known, ctx.settings.deepen_max_depth, ctx.settings.deepen_max_points
+        )
+        phase_hops = list(static.hops)
+        points_found = len({anchor_key(h.callee) for h in phase_hops})
+        if points_found < MIN_STATIC_POINTS and not ctx.walk_budget.exhausted():
+            budget = next_budget(base, carry)
+            walk = walk_deepen(ctx, phase, question, budget, [*known, *phase_hops])
+            carry = max(0, budget - len(walk.hops))
+            phase_hops += walk.hops
+            effects.extend(walk.effects)
+            if walk.partial_reason:
+                reasons.append(f"deepen {phase.title}: {walk.partial_reason}")
+        hops.extend(phase_hops)
+        points = [*phase.anchors, *(h.callee for h in phase_hops if h.verdict != "rejected")]
+        found, why = phase_effects(ctx, phase.title, points, [*stored, *effects])
+        effects.extend(found)
+        if why:
+            reasons.append(f"effects {phase.title}: {why}")
     return hops, effects
 
 
@@ -186,7 +221,9 @@ def _split_level(
     reasons: list[str],
 ) -> list[Node]:
     """Split every parent into children, saving each parent's children as they arrive."""
-    jobs: list[Job] = [(p, subpath_points(p, hops) or list(p.anchors)) for p in parents]
+    jobs: list[Job] = [
+        (p, subpath_points(p, hops, _blocked(p, nodes)) or list(p.anchors)) for p in parents
+    ]
     level_kids: list[Node] = []
 
     def done(i: int, result: StepResult) -> None:
@@ -259,7 +296,7 @@ def run_trace(ctx: TraceContext, question: str, entry: Anchor, mode: TraceMode) 
         parents = phases
         while parents and not ctx.cancel.is_set():
             kids = _split_level(ctx, parents, hops, effects, nodes, edges, reasons)
-            parents = [k for k in kids if _eligible(k, hops)]
+            parents = [k for k in kids if _eligible(k, hops, nodes)]
 
     sides, side_edges = side_nodes(side_hops(hops), nodes)
     _emit(ctx, "step_started", "validate")
@@ -275,8 +312,7 @@ def run_trace(ctx: TraceContext, question: str, entry: Anchor, mode: TraceMode) 
 
     _emit(ctx, "step_started", "save")
     store.replace_graph(tid, report.nodes, report.edges)
-    budget = ctx.budget
-    store.set_totals(tid, budget.input_tokens, budget.output_tokens, budget.cost_usd)
+    store.set_totals(tid, *ctx.totals())
 
     survivors = sum(1 for n in report.nodes if n.level == 0)
     ratio = drop_ratio(len(report.nodes), report.dropped)
@@ -305,8 +341,9 @@ def expand_node(ctx: TraceContext, node_id: str) -> list[Node]:
     if node is None or trace is None:
         raise KeyError(node_id)
     hops = store.get_hops(tid)
+    blocked = _blocked(node, store.get_graph(tid, 0).nodes)
     new_hops: list[Hop] = []
-    if len(subpath_points(node, hops)) < MIN_SUBPATH_POINTS:
+    if len(subpath_points(node, hops, blocked)) < MIN_SUBPATH_POINTS:
         known = [h for h in hops if any(anchor_contains(a, h.caller) for a in node.anchors)]
         walk = walk_deepen(ctx, node, trace.question, EXPAND_HOPS, known)
         new_hops = walk.hops
@@ -314,7 +351,7 @@ def expand_node(ctx: TraceContext, node_id: str) -> list[Node]:
             _emit(ctx, "warning", f"deepen {node.title}: {walk.partial_reason}")
         hops = store.get_hops(tid)
     effects = store.get_walk_effects(tid)
-    points = subpath_points(node, hops) or list(node.anchors)
+    points = subpath_points(node, hops, blocked) or list(node.anchors)
 
     children, reason = split_children(ctx, node, points, effects)
     if reason:

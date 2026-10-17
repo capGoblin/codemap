@@ -78,11 +78,16 @@ class RoutedModel:
     def respond(self, *, system: str, messages: list, tools: list, max_tokens: int) -> Any:
         if system == prompt("walk_deepen"):
             return _submit(done=True)
+        if system == prompt("phase_effects"):
+            return resp(tool_use("submit", {"effects": []}, "s"))
         if system == prompt("split_phases"):
             return self.phases
         if system == prompt("split_steps"):
             first = messages[0]["content"]
-            return next(r for title, r in self.steps.items() if f"Phase: {title}\n" in first)
+            return next(
+                (r for title, r in self.steps.items() if f"Phase: {title}\n" in first),
+                resp(tool_use("submit", {"steps": []}, "s")),  # a step split: no sub-steps
+            )
         if system == prompt("explain"):
             return self.explain
         return self.walk.pop(0)
