@@ -10,7 +10,7 @@ from codemap.settings import Settings
 from fakes import ScriptedModel
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "sample_repo"
-PROMPTS = ["resolve", "walk", "verify", "split_phases", "split_steps"]
+PROMPTS = ["resolve", "walk_skeleton", "walk_deepen", "verify", "split_phases", "split_steps"]
 
 
 @pytest.fixture
