@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from codemap.repo.ignore import RepoIgnore
+from codemap.repo.sandbox import OutsideRepoError
 from codemap.repo.tools import RepoTools
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "sample_repo"
@@ -59,6 +60,13 @@ def test_file_text(tools: RepoTools) -> None:
     assert "def upload" in tools.file_text("app/api.py")
 
 
+def test_file_text_raises(tools: RepoTools) -> None:
+    with pytest.raises(OutsideRepoError):
+        tools.file_text("../x")
+    with pytest.raises(FileNotFoundError):
+        tools.file_text("missing.py")
+
+
 def test_search_finds_call(tools: RepoTools) -> None:
     assert "app/api.py" in tools.search("accept_document")
 
@@ -87,7 +95,6 @@ def test_tool_returns_error_text_outside_root(tools: RepoTools) -> None:
         tools.read_file("../x"),
         tools.read_file("/etc/passwd"),
         tools.list_dir(".."),
-        tools.file_text("../x"),
         tools.read_file("missing.py"),
     ):
         assert out.startswith("error:")
@@ -96,7 +103,8 @@ def test_tool_returns_error_text_outside_root(tools: RepoTools) -> None:
 def test_read_file_ignored_path(tools: RepoTools) -> None:
     for path in ("build/out.py", "node_modules/x.js"):
         assert tools.read_file(path).startswith("error: path is ignored")
-        assert tools.file_text(path).startswith("error: path is ignored")
+        with pytest.raises(OutsideRepoError, match="path is ignored"):
+            tools.file_text(path)
 
 
 def test_list_dir_ignored_dir(tools: RepoTools) -> None:

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Protocol
 
 import tree_sitter_language_pack as tslp
 
-from codemap.repo.tools import FILE_ERROR_PREFIX
+from codemap.repo.sandbox import OutsideRepoError
 
 if TYPE_CHECKING:
     from tree_sitter import Node
@@ -130,8 +130,8 @@ def _regex_outline(text: str) -> list[Symbol]:
 def _parse(language: str, text: str) -> list[Symbol] | None:
     """Symbols from tree-sitter, or None when the grammar is not available."""
     try:
-        tree = tslp.get_parser(language).parse(text.encode("utf-8"))
-    except Exception:  # grammar missing or download failed
+        tree = tslp.get_parser(language).parse(text.encode("utf-8"))  # type: ignore[arg-type]
+    except Exception:  # grammar missing
         return None
     return _walk(tree.root_node)
 
@@ -142,8 +142,9 @@ class SymbolIndex:
         self._cache = cache
 
     def outline(self, path: str) -> list[Symbol]:
-        text = self._tools.file_text(path)
-        if text.startswith(FILE_ERROR_PREFIX):
+        try:
+            text = self._tools.file_text(path)
+        except (OutsideRepoError, OSError):
             return []
         key = hashlib.sha256(f"{path}\0{text}".encode()).hexdigest()
         if (cached := self._cache.get(key)) is not None:

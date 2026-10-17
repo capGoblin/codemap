@@ -18,7 +18,6 @@ if TYPE_CHECKING:
 PAGE_LINES = 400
 MAX_LINE_CHARS = 2000
 BINARY_SNIFF_BYTES = 8192
-FILE_ERROR_PREFIX = "error: "
 
 
 def _safe[F: Callable[..., str]](fn: F) -> F:
@@ -96,9 +95,8 @@ class RepoTools:
             out.append(f"... {more} more lines; call read_file with start={last + 1}")
         return "\n".join(out)
 
-    @_safe
     def file_text(self, path: str) -> str:
-        """Raw text for code use only. Not a tool the agent calls."""
+        """Raw text for code use only. Not a tool the agent calls. Raises on bad paths."""
         return self._resolve_visible(path).read_text(errors="replace")
 
     def outline(self, path: str) -> str:

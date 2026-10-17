@@ -4,7 +4,8 @@ import hashlib
 import re
 
 from codemap.domain.models import Anchor
-from codemap.repo.tools import FILE_ERROR_PREFIX, RepoTools
+from codemap.repo.sandbox import OutsideRepoError
+from codemap.repo.tools import RepoTools
 
 
 def hash_range(text: str, start: int, end: int) -> str:
@@ -14,9 +15,12 @@ def hash_range(text: str, start: int, end: int) -> str:
 
 def _range_text(tools: RepoTools, anchor: Anchor) -> tuple[str, str | None]:
     """Return (text of the range, error message)."""
-    text = tools.file_text(anchor.file)
-    if text.startswith(FILE_ERROR_PREFIX):
-        return "", text.removeprefix(FILE_ERROR_PREFIX)
+    try:
+        text = tools.file_text(anchor.file)
+    except OutsideRepoError as exc:
+        return "", str(exc)
+    except OSError as exc:
+        return "", f"cannot read {anchor.file}: {exc.strerror or exc}"
     lines = text.splitlines()
     if anchor.end_line > len(lines):
         return "", f"range {anchor.start_line}-{anchor.end_line} is past end of {anchor.file}"

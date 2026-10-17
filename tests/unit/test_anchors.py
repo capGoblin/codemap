@@ -67,3 +67,8 @@ def test_is_stale_after_edit(tools: RepoTools, repo: Path) -> None:
 
 def test_is_stale_for_missing_file(tools: RepoTools) -> None:
     assert is_stale(tools, _anchor(file="missing.py"))
+
+
+def test_anchor_file_starting_with_error_prefix(tools: RepoTools, repo: Path) -> None:
+    (repo / "e.py").write_text("error: not a failure\ndef real():\n    pass\n")
+    assert check_anchor(tools, _anchor(file="e.py", start=1, end=3, symbol="real")) is None

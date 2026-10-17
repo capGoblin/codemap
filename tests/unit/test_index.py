@@ -103,3 +103,8 @@ def test_tool_text(tools: RepoTools) -> None:
     assert "app/worker.py:9-12 function_definition parse_document" in tools.outline("app/worker.py")
     assert tools.find_definition("enqueue").startswith("app/queue.py:")
     assert tools.find_definition("nope_zzz").startswith("no definition")
+
+
+def test_outline_file_starting_with_error_prefix(tools: RepoTools, repo: Path) -> None:
+    (repo / "e.py").write_text("error: not a failure\ndef real():\n    pass\n")
+    assert _names(tools, "e.py") == {"real": 2}
