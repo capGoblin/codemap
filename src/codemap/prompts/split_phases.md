@@ -11,10 +11,10 @@ You get the ordered points of a recorded execution path, one per line: `index: f
 
 # Example (generic)
 
-Path: an HTTP upload handler, an idempotency check, an outbox write, a job runner, then three functions that parse, enrich and save a record.
+Path: an HTTP upload handler, an idempotency check, an async scan callback, an outbox write, a job start, a job runner, then three functions that parse, enrich and save a record.
 
 - Wrong: 7 phases, one per function. That lists plumbing.
-- Right: "Receive" (handler, idempotency check, outbox write), "Parse", "Enrich", "Save". The job runner is not a phase. Its order is the edges.
+- Right: "Receive" (handler, idempotency check, async scan callback, outbox write, job start), "Parse", "Enrich", "Save". The job runner is not a phase. Its order is the edges.
 
 # How to split
 
@@ -33,4 +33,4 @@ For each phase give: title, summary, does (1 to 3 sentences), `start` and `end` 
 - The output of one phase should match the input of the next, or boundary_reason must say why not.
 - Do not add a phase for code that is not on the path.
 - Prefer fewer, clear phases over many thin ones. A phase is one stage of work, not one function call.
-- Keep async handoffs at a phase boundary.
+- An async handoff that only moves the same work along (upload -> scan callback -> queue -> job start) stays inside one phase. A phase boundary is where the system starts a new stage of work on the data.
