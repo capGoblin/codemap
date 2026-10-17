@@ -30,6 +30,12 @@ describe("layout", () => {
     expect(open.get("s2")!.x).toBeGreaterThan(open.get("s1")!.x);
   });
 
+  it("gives an open phase without steps the closed size", async () => {
+    const e = mk([node("P1", 0, null, 0)], []);
+    const r = await layout(buildVisible(e, new Set(["P1"])));
+    expect(r.get("P1")).toMatchObject({ width: 220, height: 110 });
+  });
+
   it("puts parallel steps in the same layer", async () => {
     const pg = (n: Node, group: number | null): Node => ({ ...n, parallel_group: group });
     const p = mk(

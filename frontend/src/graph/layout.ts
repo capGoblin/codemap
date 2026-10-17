@@ -39,12 +39,13 @@ function parallelEdges(v: V): ElkExtendedEdge[] {
 
 export function toElk(v: V): ElkNode {
   const children = new Map<string, ElkNode[]>();
+  const hasChild = new Set(v.nodes.filter((n) => n.kind === "step").map((n) => n.parentId));
   const roots: ElkNode[] = [];
   const phaseNode = new Map<string, ElkNode>();
   for (const n of v.nodes) {
     if (n.kind === "phase") {
       const el: ElkNode = { id: n.id };
-      if (n.open) {
+      if (n.open && hasChild.has(n.id)) {
         el.children = [];
         el.layoutOptions = { "elk.padding": "[top=40,left=20,bottom=20,right=20]" };
       } else {

@@ -1,0 +1,18 @@
+:root {
+  --cat-db: #d9730d;
+  --cat-object-store: #0f8b8d;
+  --cat-queue-workflow: #7c3aed;
+  --cat-cache: #b7950b;
+  --cat-file: #6b7280;
+  --cat-external: #db2777;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --cat-db: #f59e42;
+    --cat-object-store: #2dd4bf;
+    --cat-queue-workflow: #a78bfa;
+    --cat-cache: #facc15;
+    --cat-file: #9ca3af;
+    --cat-external: #f472b6;
+  }
+}
