@@ -15,13 +15,23 @@ def anc(file: str, a: int, b: int) -> Anchor:
     return Anchor(file=file, start_line=a, end_line=b, symbol="s")
 
 
-def node(id: str, level: int, parent: str | None, order: int, *anchors: Anchor, effects=()):
+def node(
+    id: str,
+    level: int,
+    parent: str | None,
+    order: int,
+    *anchors: Anchor,
+    effects=(),
+    summary="ok",
+    title=None,
+):
     return Node(
         id=id,
         level=level,
         parent_id=parent,
         order=order,
-        title=id,
+        title=title or id,
+        summary=summary,
         does="",
         input="",
         output="",
@@ -118,3 +128,91 @@ def test_load_expected_ok(tmp_path):
     f = tmp_path / "e.json"
     f.write_text(json.dumps(expected().model_dump()))
     assert load_expected(f, REPO).phases[1].title == "worker"
+
+
+def deep_expected() -> ExpectedTrace:
+    e = expected()
+    e.phases[0].steps[0].steps = [ExpectedNode(title="g", spans=[anc("app/api.py", 1, 2)])]
+    return e
+
+
+def deep_nodes() -> list[Node]:
+    return [
+        *perfect(),
+        node("g1", 2, "s1", 0, anc("app/api.py", 1, 2)),
+    ]
+
+
+def test_n_level_perfect_and_depth_recall():
+    s = score(graph(*deep_nodes()), deep_expected())
+    assert s.step_agreement == 1.0
+    assert s.depth_recall == 1.0
+
+
+def test_n_level_step_agreement_averages_all_parents():
+    nodes = [n for n in deep_nodes() if n.id != "g1"]
+    nodes.append(node("g1", 2, "s1", 0, anc("app/other.py", 1, 2)))
+    s = score(graph(*nodes), deep_expected())
+    # parents p1 (1.0), p2 (leaf, skipped), s1 (0.0): mean 0.5
+    assert s.step_agreement == 0.5
+
+
+def test_depth_recall_counts_any_deeper_level():
+    nodes = [n for n in deep_nodes() if n.id != "g1"]
+    s = score(graph(*nodes), deep_expected())
+    # s1 spans app/api.py 1-4 and overlaps the expected level-2 span
+    assert s.depth_recall == 1.0
+    phases_only = [n for n in nodes if n.level == 0]
+    assert score(graph(*phases_only), deep_expected()).depth_recall == 0.0
+
+
+def test_max_phases_ok():
+    many = [node(f"p{i}", 0, None, i, anc("app/api.py", 1, 8)) for i in range(8)]
+    assert score(graph(*many), expected()).max_phases_ok is False
+    assert score(graph(*perfect()), expected()).max_phases_ok is True
+
+
+def test_titles_ok():
+    long = node("p1", 0, None, 0, anc("app/api.py", 1, 8), title="one two three four five")
+    assert score(graph(long), expected()).titles_ok is False
+    assert score(graph(*perfect()), expected()).titles_ok is True
+
+
+def test_summaries_ok():
+    empty = node("p1", 0, None, 0, anc("app/api.py", 1, 8), summary="")
+    wordy = node("p1", 0, None, 0, anc("app/api.py", 1, 8), summary=" ".join(["w"] * 15))
+    assert score(graph(empty), expected()).summaries_ok is False
+    assert score(graph(wordy), expected()).summaries_ok is False
+    assert score(graph(*perfect()), expected()).summaries_ok is True
+
+
+def test_plumbing_phase_titles():
+    a = node("p1", 0, None, 0, anc("app/api.py", 1, 8), title="Outbox relay")
+    b = node("p2", 0, None, 1, anc("app/worker.py", 1, 12), title="Run workflow")
+    c = node("s1", 1, "p1", 0, anc("app/api.py", 1, 4), title="Update status")
+    s = score(graph(a, b, c), expected())
+    assert s.plumbing_phase_titles == 2
+    assert "plumbing_titles=2" in format_score(s)
+
+
+example = Path("../example-app")
+GOLDEN = Path(__file__).resolve().parents[1] / "example-file-parsing.expected.json"
+
+
+@pytest.mark.skipif(not example.is_dir(), reason="example repo not present")
+def test_load_example_expected_shape():
+    exp = load_expected(GOLDEN, example)
+    assert [p.title for p in exp.phases] == ["Upload", "Parse", "Interpret", "Load"]
+    nodes = []
+
+    def walk(ns):
+        for n in ns:
+            nodes.append(n)
+            walk(n.steps)
+
+    walk(exp.phases)
+    assert all(len(n.title.split()) <= 4 for n in nodes)
+    assert all(0 < len(n.summary.split()) <= 14 for n in nodes)
+    assert {e.op for e in exp.effects} <= {"read", "write"}
+    interpret = [s.title for s in exp.phases[2].steps]
+    assert {"Locate tables", "Extract values", "Map fields"} <= set(interpret)

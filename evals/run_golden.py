@@ -62,7 +62,7 @@ def run_golden(expected_path: Path, *, record: bool, model: ChatModel | None = N
     entry = EntryCandidate(anchor=expected.entry, label="golden", reason="pinned")
     trace_id = service.start_trace(expected.question, entry, "eager")
     service.wait(trace_id)
-    result = score(service.get_graph(trace_id, depth=1), expected)
+    result = score(service.get_graph(trace_id, depth=99), expected)
     print(format_score(result))
     return result
 
