@@ -64,6 +64,8 @@ class ScriptedModel:
         }
 
     def respond(self, *, system: str, messages: list, tools: list, max_tokens: int) -> Any:
+        if system == prompt("walk_deepen"):
+            return reply("submit", {"done": True}, "d")
         if system == prompt("split_phases"):
             return reply("submit", {"phases": [phase(0, 2, "intake"), phase(3, 4, "worker")]}, "p")
         if system == prompt("split_steps"):
