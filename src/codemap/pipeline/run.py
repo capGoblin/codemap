@@ -9,7 +9,13 @@ from datetime import UTC, datetime
 
 from codemap.domain.events import Event, EventKind
 from codemap.domain.models import Anchor, Effect, Node, TraceMode, TraceStatus
-from codemap.domain.rules import anchor_contains, drop_ratio, path_points, side_hops
+from codemap.domain.rules import (
+    anchor_contains,
+    drop_ratio,
+    path_points,
+    side_hops,
+    unreachable_hops,
+)
 from codemap.pipeline.context import TraceContext
 from codemap.pipeline.split import (
     phase_edges,
@@ -52,6 +58,13 @@ def run_trace(ctx: TraceContext, question: str, entry: Anchor, mode: TraceMode) 
         reasons.append(f"walk: {walk.partial_reason}")
 
     points = path_points(entry, walk.hops)
+    for lost in unreachable_hops(points, walk.hops):
+        _emit(
+            ctx,
+            "warning",
+            f"hop not reachable from the entry, so not shown: "
+            f"{lost.caller.symbol} -> {lost.callee.symbol}",
+        )
     _emit(ctx, "step_started", "split_phases")
     phases, reason = split_phases(ctx, question, points, walk.effects)
     if reason:

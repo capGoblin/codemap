@@ -280,3 +280,13 @@ def test_run_trace_eager_concurrency_4(tmp_path: Path) -> None:
     graph = ctx.store.get_graph("t1", 1)
     assert len([n for n in graph.nodes if n.level == 0]) == 5
     assert len([n for n in graph.nodes if n.level == 1]) == 5
+
+
+def test_run_trace_warns_about_unreachable_hops(tmp_path: Path) -> None:
+    walk = [hop(UPLOAD, ACCEPT, "h1"), hop(PARSE, STORE, "h2"), submit(done=True)]
+    steps = {"only": submit(steps=[step_draft("accept", [ACCEPT])])}
+    phases = submit(phases=[phase_draft(0, 1, "only")])
+    ctx, events = setup(tmp_path, RoutedModel(walk, phases, steps))
+    run_trace(ctx, "q", ENTRY, "eager")
+    lost = [e.message for e in events if e.kind == "warning" and "not reachable" in e.message]
+    assert len(lost) == 1 and "parse_document" in lost[0]

@@ -54,6 +54,7 @@ class _Walker:
         self.ctx = ctx
         self.hops: list[Hop] = []
         self.effects: list[Effect] = []
+        self.hop_limited = False
 
     def emit(self, kind: EventKind, message: str, **data: object) -> None:
         self.ctx.emit(
@@ -78,11 +79,15 @@ class _Walker:
 
     def record_hop(self, args: dict[str, Any]) -> str:
         if len(self.hops) >= self.ctx.settings.max_hops:
+            self.hop_limited = True
             return HOP_LIMIT_TEXT
         spec = HopInput.model_validate(args)
-        if error := self._first_error(spec.caller, spec.callee, spec.wiring):
+        if error := self._first_error(spec.caller, spec.callee):
             return f"error: {error}"
         tools = self.ctx.tools
+        if spec.wiring is not None and self._first_error(spec.wiring):
+            # A bad wiring anchor must not lose a real hop (spec 5.4). The verifier decides.
+            spec = spec.model_copy(update={"wiring": None, "hop_type": "indirect"})
         hop = Hop(
             id=uuid.uuid4().hex,
             caller=with_hash(tools, spec.caller),
@@ -166,4 +171,6 @@ def walk_path(ctx: TraceContext, entry: Anchor, question: str) -> WalkResult:
         partial = f"limit reached: {exc.reason}"
     except ModelError as exc:
         partial = f"model error: {exc}"
+    if partial is None and walker.hop_limited:
+        partial = "hop limit reached"
     return WalkResult(walker.hops, walker.effects, partial)

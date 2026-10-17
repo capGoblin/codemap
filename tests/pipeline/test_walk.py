@@ -176,3 +176,24 @@ def test_walk_persists_hops_as_recorded(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError):
         walk_path(ctx, ENTRY, "q")
     assert len(ctx.store.get_hops("t1")) == 2
+
+
+def test_walk_bad_wiring_anchor_keeps_hop_and_verifies(tmp_path: Path) -> None:
+    script = [
+        hop(UPLOAD, ACCEPT, "a", wiring=GHOST),
+        verdict(verdict="unsure", evidence="cannot tell"),
+        submit(),
+    ]
+    ctx, _, _ = make(tmp_path, script)
+    result = walk_path(ctx, ENTRY, "q")
+    (h,) = result.hops
+    assert h.wiring is None and h.hop_type == "indirect" and h.verdict == "unsure"
+
+
+def test_walk_hop_limit_marks_partial(tmp_path: Path) -> None:
+    script = [hop(UPLOAD, ACCEPT, "a"), hop(ACCEPT, ENQUEUE, "b"), submit()]
+    ctx, _, _ = make(tmp_path, script)
+    ctx.settings = ctx.settings.model_copy(update={"max_hops": 1})
+    result = walk_path(ctx, ENTRY, "q")
+    assert len(result.hops) == 1
+    assert result.partial_reason == "hop limit reached"

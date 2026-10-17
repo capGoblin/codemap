@@ -17,25 +17,36 @@ def callee_named_in(caller_text: str, callee_symbol: str) -> bool:
     return re.search(rf"\b{re.escape(name)}\b", caller_text) is not None
 
 
+def anchors_overlap(a: Anchor, b: Anchor) -> bool:
+    """Same file and the line ranges share a line. Symbol spelling is ignored on purpose."""
+    return a.file == b.file and a.start_line <= b.end_line and b.start_line <= a.end_line
+
+
 def path_points(entry: Anchor, hops: Sequence[Hop]) -> list[Anchor]:
-    children: dict[tuple[str, int, int, str], list[Anchor]] = {}
-    for h in hops:
-        if h.kind in _PATH_KINDS and h.verdict != "rejected":
-            children.setdefault(anchor_key(h.caller), []).append(h.callee)
-    seen: set[tuple[str, int, int, str]] = set()
+    edges = [h for h in hops if h.kind in _PATH_KINDS and h.verdict != "rejected"]
     order: list[Anchor] = []
 
     def visit(a: Anchor) -> None:
-        key = anchor_key(a)
-        if key in seen:
+        if any(anchors_overlap(a, seen) for seen in order):
             return
-        seen.add(key)
         order.append(a)
-        for child in children.get(key, []):
-            visit(child)
+        for h in edges:
+            if anchors_overlap(h.caller, a):
+                visit(h.callee)
 
     visit(entry)
     return order
+
+
+def unreachable_hops(points: Sequence[Anchor], hops: Sequence[Hop]) -> list[Hop]:
+    """Path hops whose caller does not lie on the path. They are lost from the graph."""
+    return [
+        h
+        for h in hops
+        if h.kind in _PATH_KINDS
+        and h.verdict != "rejected"
+        and not any(anchors_overlap(h.caller, p) for p in points)
+    ]
 
 
 def side_hops(hops: Sequence[Hop]) -> list[Hop]:
