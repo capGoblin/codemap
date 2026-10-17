@@ -14,11 +14,13 @@ from codemap.domain.models import (
     Effect,
     Hop,
     Node,
+    NodeExplain,
     Trace,
     TraceGraph,
     TraceStatus,
 )
 from codemap.store.db import conn_lock
+from codemap.store.details import load_explain, store_explain
 
 _ANCHORS = TypeAdapter(tuple[Anchor, ...])
 _EFFECTS = TypeAdapter(tuple[Effect, ...])
@@ -50,6 +52,7 @@ def _node_from(row: sqlite3.Row) -> Node:
         parent_id=row["parent_id"],
         order=row["ord"],
         title=row["title"],
+        summary=row["summary"],
         does=row["does"],
         input=row["input"],
         output=row["output"],
@@ -64,7 +67,7 @@ def _node_from(row: sqlite3.Row) -> Node:
 
 def _node_values(trace_id: str, n: Node) -> tuple[object, ...]:
     return (
-        trace_id, n.id, n.level, n.parent_id, n.order, n.title, n.does, n.input,
+        trace_id, n.id, n.level, n.parent_id, n.order, n.title, n.summary, n.does, n.input,
         n.output, n.boundary_reason, _ANCHORS.dump_json(n.anchors).decode(),
         _EFFECTS.dump_json(n.effects).decode(), n.parallel_group, int(n.stale),
         _STRINGS.dump_json(n.warnings).decode(),
@@ -183,9 +186,10 @@ class TraceStore:
 
     def _insert(self, trace_id: str, nodes: Iterable[Node], edges: Iterable[Edge]) -> None:
         self._conn.executemany(
-            "INSERT OR REPLACE INTO nodes (trace_id, id, level, parent_id, ord, title, does,"
-            " input, output, boundary_reason, anchors, effects, parallel_group, stale, warnings)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO nodes (trace_id, id, level, parent_id, ord, title, summary,"
+            " does, input, output, boundary_reason, anchors, effects, parallel_group, stale,"
+            " warnings)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [_node_values(trace_id, n) for n in nodes],
         )
         self._conn.executemany(
@@ -247,6 +251,14 @@ class TraceStore:
             if r[0] in ids and r[1] in ids
         )
         return TraceGraph(trace=trace, nodes=nodes, edges=edges)
+
+    @_locked
+    def get_explain(self, trace_id: str, node_id: str) -> NodeExplain | None:
+        return load_explain(self._conn, trace_id, node_id)
+
+    @_locked
+    def save_explain(self, trace_id: str, node_id: str, explain: NodeExplain) -> None:
+        store_explain(self._conn, trace_id, node_id, explain)
 
     @_locked
     def set_stale(self, trace_id: str, node_ids: set[str]) -> None:

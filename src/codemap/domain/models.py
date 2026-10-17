@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 EffectCategory = Literal[
     "db", "object_store", "queue", "cache", "file", "workflow", "http", "other"
 ]
-EffectOp = Literal["read", "write", "delete", "publish", "consume", "call"]
+EffectOp = Literal["read", "write"]
 EdgeKind = Literal["call", "async", "error", "branch"]
 HopType = Literal["direct", "indirect"]
 Verdict = Literal["code_checked", "confirmed", "unsure", "rejected"]
@@ -57,6 +57,7 @@ class Node(_Frozen):
     parent_id: str | None
     order: int
     title: str
+    summary: str = ""
     does: str
     input: str
     output: str
@@ -112,3 +113,21 @@ class VerifierResult(_Frozen):
     verdict: Verdict
     evidence: str
     suggested_callee: Anchor | None = None
+
+
+class ExplainStep(_Frozen):
+    text: str
+    lines: tuple[int, int]
+    file: str
+
+
+class IoSide(_Frozen):
+    type: str = ""
+    fields: tuple[str, ...] = ()
+    node_id: str | None = None
+
+
+class NodeExplain(_Frozen):
+    steps: tuple[ExplainStep, ...] = ()
+    input: IoSide = IoSide()
+    output: IoSide = IoSide()

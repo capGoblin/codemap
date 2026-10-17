@@ -1,7 +1,7 @@
 import re
 from collections.abc import Iterable, Sequence
 
-from codemap.domain.models import Anchor, Effect, Hop, Node
+from codemap.domain.models import Anchor, Effect, EffectOp, Hop, Node
 
 _PATH_KINDS = {"call", "async"}
 _SIDE_KINDS = {"error", "branch"}
@@ -107,3 +107,39 @@ def io_chain_warning(phase: Node, steps: Sequence[Node]) -> str | None:
 def drop_ratio(kept: int, dropped: int) -> float:
     total = kept + dropped
     return dropped / total if total else 0.0
+
+
+_OLD_WRITE_OPS = {"write", "delete", "publish"}
+_OLD_READ_OPS = {"read", "consume", "call"}
+
+
+def normalize_op(raw: str) -> EffectOp:
+    """Map any current or v2 effect op to `read` or `write`."""
+    op = raw.strip().lower()
+    if op in _OLD_WRITE_OPS:
+        return "write"
+    if op in _OLD_READ_OPS:
+        return "read"
+    raise ValueError(f"unknown effect op: {raw!r}")
+
+
+_FILLER_WORDS = {"row", "rows", "table", "tables"}
+_GENERIC_STORES = {"s3", "gcs", "blob", "azure blob", "object store", "storage", "bucket"}
+_STORE_SCHEME = re.compile(r"^(s3|gs|gcs|az|abfs)://", re.IGNORECASE)
+_METHOD_SUFFIX = re.compile(r"\.\w+(\(\))?$")
+
+
+def normalize_target(category: str, raw: str) -> str:
+    """Reduce a model-written target to the real name. Keep the identifier, drop the filler."""
+    text = raw.strip().strip("`'\"").strip()
+    if " via " in text:
+        left, right = text.split(" via ", 1)
+        if left.strip().lower() in _GENERIC_STORES:
+            text = _METHOD_SUFFIX.sub("", right.strip())
+        else:
+            text = left.strip()
+    if category == "object_store":
+        text = _STORE_SCHEME.sub("", text)
+    words = [w.strip("`'\"").rstrip(".,;:") for w in text.split()]
+    kept = [w for w in words if w and w.lower() not in _FILLER_WORDS]
+    return " ".join(kept or words)

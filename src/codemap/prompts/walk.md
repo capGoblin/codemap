@@ -22,7 +22,7 @@ You record what runs. You do not explain or summarise.
 
 # Effects
 
-Record each side effect with the anchor of the line that does it: DB table and fields, object store bucket and key pattern, queue or topic, cache key, file path, workflow name, external HTTP host. Fields: `category`, `target`, `op` (read, write, delete, publish, consume or call), `fields` (columns or keys touched, if known) and `anchor`.
+Record each side effect with the anchor of the line that does it. Use the real name as `target`: DB table, object store bucket and key prefix, queue or topic, cache key pattern, file path, workflow name, external HTTP host. Do not add words like "row", "table" or "via". Fields: `category`, `target`, `op` (`read` or `write`; write means insert, update, delete, put, publish or start; read means select, get, consume or fetch), `fields` (columns or keys touched, if known) and `anchor`.
 
 # Rules
 

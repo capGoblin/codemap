@@ -5,14 +5,14 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from codemap.agents.limits import LimitReached
 from codemap.agents.loop import Tool, run_tool_loop
 from codemap.agents.model import ModelError
 from codemap.domain.events import Event, EventKind
-from codemap.domain.models import Anchor, EdgeKind, Effect, Hop, HopType
-from codemap.domain.rules import callee_named_in
+from codemap.domain.models import Anchor, EdgeKind, Effect, EffectCategory, Hop, HopType
+from codemap.domain.rules import callee_named_in, normalize_op, normalize_target
 from codemap.pipeline.context import TraceContext, prompt, read_tools
 from codemap.pipeline.verify import verify_hop
 from codemap.repo.anchors import check_anchor, with_hash
@@ -29,8 +29,20 @@ class HopInput(BaseModel):
     wiring: Anchor | None = None
 
 
-class EffectInput(Effect):
-    pass
+class EffectInput(BaseModel):
+    """Lenient input: any old or new op string. Stored as read or write."""
+
+    category: EffectCategory
+    target: str
+    op: str
+    fields: tuple[str, ...] = ()
+    anchor: Anchor
+
+    @field_validator("op")
+    @classmethod
+    def _known_op(cls, value: str) -> str:
+        normalize_op(value)
+        return value
 
 
 class WalkSubmit(BaseModel):
@@ -123,7 +135,13 @@ class _Walker:
         if error := self._first_error(spec.anchor):
             return f"error: {error}"
         anchor = with_hash(self.ctx.tools, spec.anchor)
-        effect = Effect(**{**spec.model_dump(), "anchor": anchor})
+        effect = Effect(
+            category=spec.category,
+            target=normalize_target(spec.category, spec.target),
+            op=normalize_op(spec.op),
+            fields=spec.fields,
+            anchor=anchor,
+        )
         self.effects.append(effect)
         self.ctx.store.add_walk_effect(self.ctx.trace_id, effect)
         return "recorded"

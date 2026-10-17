@@ -1,3 +1,5 @@
+import pytest
+
 from codemap.domain.models import Anchor, Effect, Hop, Node
 from codemap.domain.rules import (
     anchor_contains,
@@ -6,6 +8,8 @@ from codemap.domain.rules import (
     callee_named_in,
     drop_ratio,
     io_chain_warning,
+    normalize_op,
+    normalize_target,
     path_points,
     rollup_effects,
     side_hops,
@@ -149,3 +153,39 @@ def test_unreachable_hops_lists_dangling():
     )
     hops = [hop(e, a), hop(x, y)]
     assert [h.caller.symbol for h in unreachable_hops(path_points(e, hops), hops)] == ["x"]
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("write", "write"), ("delete", "write"), ("publish", "write"),
+        ("read", "read"), ("consume", "read"), ("call", "read"),
+    ],
+)  # fmt: skip
+def test_normalize_op_mapping(old: str, new: str) -> None:
+    assert normalize_op(old) == new
+
+
+def test_normalize_op_rejects_unknown() -> None:
+    with pytest.raises(ValueError):
+        normalize_op("frobnicate")
+
+
+@pytest.mark.parametrize(
+    ("category", "raw", "want"),
+    [
+        ("db", "FileUpload row", "FileUpload"),
+        ("db", "company_intelligence_document table", "company_intelligence_document"),
+        ("db", "`documents` rows.", "documents"),
+        ("db", "table users", "users"),
+        ("object_store", "S3 via DocumentStorage.put", "DocumentStorage"),
+        ("object_store", "S3 via DocumentStorage.put()", "DocumentStorage"),
+        ("object_store", "s3://acme-docs/uploads/", "acme-docs/uploads/"),
+        ("object_store", "normalized/{doc_id}", "normalized/{doc_id}"),
+        ("queue", "order-events via publisher.send", "order-events"),
+        ("file", "'audit.log'", "audit.log"),
+        ("db", "rows", "rows"),
+    ],
+)  # fmt: skip
+def test_normalize_target_cases(category: str, raw: str, want: str) -> None:
+    assert normalize_target(category, raw) == want

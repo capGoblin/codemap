@@ -18,7 +18,7 @@ describe("categories", () => {
     expect(uiCategory("other")).toBe("external");
     expect(uiCategory("db")).toBe("db");
     expect(CATEGORY_LABEL.queue_workflow).toBe("Queue / Workflow");
-    expect(opLetter("consume")).toBe("P");
+    expect(opLetter("read")).toBe("R");
     expect(opLetter("write")).toBe("W");
     expect(targetKey(eff("db", "users", "read"))).toBe("db:users");
   });

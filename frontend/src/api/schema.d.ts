@@ -151,7 +151,7 @@ export interface components {
              * Op
              * @enum {string}
              */
-            op: "read" | "write" | "delete" | "publish" | "consume" | "call";
+            op: "read" | "write";
             /**
              * Fields
              * @default []
@@ -191,6 +191,11 @@ export interface components {
             order: number;
             /** Title */
             title: string;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
             /** Does */
             does: string;
             /** Input */
