@@ -8,13 +8,25 @@ layers =
     codemap.cli
     codemap.service
     codemap.pipeline
-    codemap.store | codemap.repo | codemap.agents
+    codemap.store : codemap.repo : codemap.agents
     codemap.domain
 
 [importlinter:contract:agents-independent]
-name = agents must not import domain
+name = agents are standalone
 type = forbidden
 source_modules =
     codemap.agents
 forbidden_modules =
     codemap.domain
+    codemap.store
+    codemap.repo
+    codemap.pipeline
+
+[importlinter:contract:repo-independent]
+name = repo must not import store or agents
+type = forbidden
+source_modules =
+    codemap.repo
+forbidden_modules =
+    codemap.store
+    codemap.agents
