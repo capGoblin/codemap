@@ -19,7 +19,7 @@ Path: an HTTP upload handler, an idempotency check, an async scan callback, an o
 # How to split
 
 1. Follow the code's own structure first: workflow and activity definitions, pipeline stage modules, named functions that do one stage of the work.
-2. Use your judgement only where the code is vague. Signals: the data shape changes, a commit or write happens, an async handoff happens, a module or service boundary is crossed.
+2. Use your judgement only where the code is vague. Signals: the data shape changes, a commit or write happens, a module or service boundary is crossed.
 
 # Output (submit)
 
