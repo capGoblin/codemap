@@ -214,6 +214,14 @@ def test_phase_edges_async_when_crossing_hop_is_async() -> None:
     assert edges == {("p0", "p1", "async"), ("p1", "p2", "call")}
 
 
+def test_phase_edges_bridge_hop_makes_async_edge() -> None:
+    p0 = node("p0", 0, 0, (UPLOAD, ACCEPT))
+    p1 = node("p1", 0, 1, (PARSE, STORE))
+    bridge = hop(ACCEPT, PARSE, "async")
+    edges = {(e.source_id, e.target_id, e.kind) for e in phase_edges([p0, p1], [bridge])}
+    assert edges == {("p0", "p1", "async")}
+
+
 def test_side_nodes_attach_to_containing_node() -> None:
     err = a("app/errors.py", 1, 2, "on_fail")
     branch = a("app/branch.py", 3, 4, "alt")

@@ -40,6 +40,8 @@ When the flow passes through plumbing to reach a stage, record the hop from the 
 - `hop_type = "direct"` for a plain call that you can see by name in the caller's range.
 - `hop_type = "indirect"` for string dispatch, registries, decorators and route wiring, dependency injection, callbacks and async handoffs. Always give the wiring anchor: the line that connects the two sides.
 - Follow handoffs across processes: queues, jobs, workflow and activity starts, events, outbox rows. Find the consumer or activity with `search` and record an indirect hop with `kind = "async"`.
+- When the next stage is triggered from OUTSIDE the call stack, record an `async` indirect hop from the last stage function to the handler that runs next. Examples: an external callback or webhook, an outbox or relay, a scheduler or cron, a queue or topic, a workflow engine. Give the wiring anchor: the route registration, outbox event type, queue name or activity registration.
+- Also record the hop from a workflow start to the workflow's run method.
 - If `record_hop` returns "rejected", read the reason. Continue from the suggested callee.
 - Record error and branch paths (`kind = "error"` or `"branch"`) only ONE hop deep.
 - Do not descend into helpers. One hop per stage. The next pass goes inside.

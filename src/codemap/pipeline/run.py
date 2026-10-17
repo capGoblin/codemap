@@ -13,14 +13,14 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from codemap.domain.events import Event, EventKind
-from codemap.domain.models import Anchor, Edge, Effect, Hop, Node, TraceMode, TraceStatus
+from codemap.domain.models import Anchor, Bridge, Edge, Effect, Hop, Node, TraceMode, TraceStatus
 from codemap.domain.rules import (
     anchor_contains,
     assign_effects,
     drop_ratio,
+    ordered_points,
     path_points,
     side_hops,
-    unreachable_hops,
 )
 from codemap.pipeline.context import TraceContext
 from codemap.pipeline.split import (
@@ -122,6 +122,18 @@ def _fallback_phases(points: list[Anchor], effects: list[Effect], reason: str) -
     ]
 
 
+def _bridge_hop(bridge: Bridge) -> Hop:
+    return Hop(
+        id=uuid.uuid4().hex,
+        caller=bridge.from_anchor,
+        callee=bridge.to_anchor,
+        kind="async",
+        hop_type="indirect",
+        verdict="unsure",
+        evidence="bridged: no code link recorded between these stages",
+    )
+
+
 def _status(survivors: int, reasons: list[str], ratio: float) -> TraceStatus:
     if survivors == 0:
         return "failed"
@@ -205,14 +217,16 @@ def run_trace(ctx: TraceContext, question: str, entry: Anchor, mode: TraceMode) 
     if skeleton.partial_reason:
         reasons.append(f"walk: {skeleton.partial_reason}")
 
-    points = path_points(entry, skeleton.hops)
-    for lost in unreachable_hops(points, skeleton.hops):
+    points, bridges = ordered_points(entry, skeleton.hops)
+    bridge_hops = [_bridge_hop(b) for b in bridges]
+    for b, bridge_hop in zip(bridges, bridge_hops, strict=True):
+        store.add_hop(tid, bridge_hop)
         _emit(
             ctx,
             "warning",
-            f"hop not reachable from the entry, so not shown: "
-            f"{lost.caller.symbol} -> {lost.callee.symbol}",
+            f"bridged {b.from_anchor.symbol} -> {b.to_anchor.symbol}: no recorded code link",
         )
+    all_hops = [*skeleton.hops, *bridge_hops]
     _emit(ctx, "step_started", "split_phases")
     phases, reason = split_phases(ctx, question, points, skeleton.effects)
     if reason:
@@ -222,10 +236,10 @@ def run_trace(ctx: TraceContext, question: str, entry: Anchor, mode: TraceMode) 
     for p in phases:
         _emit(ctx, "phase_split", p.title, phase_id=p.id)
 
-    hops, effects = list(skeleton.hops), list(skeleton.effects)
+    hops, effects = list(all_hops), list(skeleton.effects)
     on_path = list(points)
     nodes: list[Node] = list(phases)
-    edges = phase_edges(phases, skeleton.hops)
+    edges = phase_edges(phases, all_hops)
     if phases:
         store.save_nodes(tid, phases, edges)  # saved now so a crash or Ctrl-C keeps the phases
     if mode == "eager" and phases and not reason:

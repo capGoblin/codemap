@@ -10,9 +10,11 @@ from codemap.domain.rules import (
     io_chain_warning,
     normalize_op,
     normalize_target,
+    ordered_points,
     path_points,
     rollup_effects,
     side_hops,
+    unreachable_hops,
 )
 
 
@@ -139,7 +141,9 @@ def test_path_points_does_not_join_other_files_or_disjoint_ranges():
     b = anc("a.py", 10, 20, "b")
     other = anc("c.py", 10, 20, "b")
     c = anc("a.py", 30, 40, "c")
-    assert [p.symbol for p in path_points(e, [hop(e, b), hop(other, c)])] == ["e", "b"]
+    points, bridges = ordered_points(e, [hop(e, b), hop(other, c)])
+    assert points == [e, b, other, c]  # c.py "b" is not joined to a.py "b"
+    assert [(x.from_anchor, x.to_anchor) for x in bridges] == [(b, other)]
 
 
 def test_unreachable_hops_lists_dangling():
@@ -152,7 +156,7 @@ def test_unreachable_hops_lists_dangling():
         anc("f.py", 70, 80, "y"),
     )
     hops = [hop(e, a), hop(x, y)]
-    assert [h.caller.symbol for h in unreachable_hops(path_points(e, hops), hops)] == ["x"]
+    assert [h.caller.symbol for h in unreachable_hops([e, a], hops)] == ["x"]
 
 
 @pytest.mark.parametrize(
@@ -189,3 +193,33 @@ def test_normalize_op_rejects_unknown() -> None:
 )  # fmt: skip
 def test_normalize_target_cases(category: str, raw: str, want: str) -> None:
     assert normalize_target(category, raw) == want
+
+
+def test_ordered_points_bridges_three_islands_in_recorded_order():
+    e, a = anc("up.py", 1, 5, "upload"), anc("up.py", 10, 15, "submit")
+    w, acc = anc("hook.py", 1, 5, "resolve_scan"), anc("hook.py", 10, 15, "accept")
+    o, st = anc("relay.py", 1, 5, "dispatch"), anc("relay.py", 10, 15, "start_wf")
+    hops = [hop(w, acc), hop(o, st), hop(e, a)]
+    points, bridges = ordered_points(e, hops)
+    assert [p.symbol for p in points] == [
+        "upload", "submit", "resolve_scan", "accept", "dispatch", "start_wf"
+    ]  # fmt: skip
+    assert [(b.from_anchor.symbol, b.to_anchor.symbol) for b in bridges] == [
+        ("submit", "resolve_scan"),
+        ("accept", "dispatch"),
+    ]
+    assert unreachable_hops(points, hops) == []
+
+
+def test_ordered_points_root_is_caller_that_is_not_a_callee():
+    e, a = anc("f.py", 1, 5, "e"), anc("f.py", 10, 15, "a")
+    x, y, z = anc("g.py", 1, 5, "x"), anc("g.py", 10, 15, "y"), anc("g.py", 20, 25, "z")
+    points, bridges = ordered_points(e, [hop(e, a), hop(y, z), hop(x, y)])
+    assert [p.symbol for p in points] == ["e", "a", "x", "y", "z"]
+    assert [b.to_anchor.symbol for b in bridges] == ["x"]
+
+
+def test_ordered_points_connected_path_has_no_bridge():
+    e, a, b = anc("f.py", 1, 5, "e"), anc("f.py", 10, 15, "a"), anc("f.py", 20, 25, "b")
+    points, bridges = ordered_points(e, [hop(e, a), hop(a, b)])
+    assert points == [e, a, b] and bridges == []
