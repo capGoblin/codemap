@@ -139,6 +139,7 @@ class RepoTools:
             cmd += ["--glob", glob]
         cmd.append(".")
         proc = subprocess.run(cmd, cwd=self._root, capture_output=True, text=True, check=False)
+        found: list[tuple[str, int, str]] = []
         for raw in proc.stdout.splitlines():
             event = json.loads(raw)
             if event.get("type") != "match":
@@ -147,7 +148,11 @@ class RepoTools:
             rel = Path(data["path"]["text"]).as_posix().removeprefix("./")
             if self._ignore.is_ignored(rel) or "text" not in data["lines"]:
                 continue
-            yield self._row(rel, data["line_number"], data["lines"]["text"])
+            found.append((rel, data["line_number"], data["lines"]["text"]))
+        # rg runs in parallel, so its order varies. Sort so the same search gives the same text
+        # and the model-call cache can replay it.
+        for rel, number, text in sorted(found, key=lambda f: f[:2]):
+            yield self._row(rel, number, text)
 
     def _search_py(self, pattern: str, glob: str | None) -> Iterator[str]:
         regex = re.compile(pattern)

@@ -29,4 +29,5 @@ Record each side effect with the anchor of the line that does it: DB table and f
 - Only code that runs for this flow. Never record a hop into code that is not reached from the entry point on this flow. Skip dead code, tests, and other branches of dispatch tables.
 - Every path, line and symbol must come from a tool result. Never invent one.
 - Record every hop you find. When unsure whether a hop is real, record it as indirect so it is checked.
-- Do not leave the flow to explore. Stop at the end of the flow, at a library call, or at the hop limit, then call `submit`.
+- Do not leave the flow to explore. Stop at the end of the flow, at a call into a third-party library, or at the hop limit, then call `submit`.
+- Code inside this repo is never "out of scope" because of what it does. Follow tool execution, memory reads and writes, persistence and logging into their own functions, as long as the flow reaches them. Do not submit with `done` true while a reached function in this repo is still unwalked.

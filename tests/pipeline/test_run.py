@@ -201,7 +201,7 @@ def test_run_trace_side_node_for_error_hop(tmp_path: Path) -> None:
 
 def test_run_trace_single_function_flow(tmp_path: Path) -> None:
     phases = submit(phases=[phase_draft(0, 0, "only")])
-    steps = {"only": submit(steps=[step_draft("upload", [UPLOAD])])}
+    steps = {"only": submit(steps=[step_draft("Accept the upload (upload)", [UPLOAD])])}
     ctx, _ = setup(tmp_path, RoutedModel([submit(done=True)], phases, steps))
     assert run_trace(ctx, "q", ENTRY, "eager") == "complete"
     assert len([n for n in ctx.store.get_graph("t1", 0).nodes]) == 1

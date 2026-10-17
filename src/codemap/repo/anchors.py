@@ -27,6 +27,11 @@ def _range_text(tools: RepoTools, anchor: Anchor) -> tuple[str, str | None]:
     return text, None
 
 
+def check_range(tools: RepoTools, anchor: Anchor) -> str | None:
+    """Like `check_anchor`, but does not look for the symbol. Use it for sub-ranges."""
+    return _range_text(tools, anchor)[1]
+
+
 def check_anchor(tools: RepoTools, anchor: Anchor) -> str | None:
     text, error = _range_text(tools, anchor)
     if error:
