@@ -129,3 +129,18 @@ def test_loop_max_turns() -> None:
     with pytest.raises(LimitReached) as exc:
         _run(model, [], max_turns=2)
     assert exc.value.reason == "max_turns"
+
+
+def test_loop_trims_old_tool_results() -> None:
+    model = ScriptedModel(
+        [resp(tool_use("echo", {"n": i}, f"t{i}")) for i in range(3)]
+        + [resp(tool_use("submit", {"answer": "x"}, "s"))]
+    )
+    _run(model, [_echo([])], keep_recent_turns=2)
+    last = model.requests[3]["messages"]
+    assert last[0] == {"role": "user", "content": "u"}
+    assert last[2]["content"][0]["content"] == "[older tool output trimmed]"
+    assert last[4]["content"][0]["content"] == "echoed"
+    assert last[6]["content"][0]["content"] == "echoed"
+    assert last[1]["content"][0]["type"] == "tool_use"
+    assert model.requests[1]["messages"][2]["content"][0]["content"] == "echoed"
