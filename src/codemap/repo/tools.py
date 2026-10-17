@@ -120,6 +120,8 @@ class RepoTools:
     @_safe
     def search(self, pattern: str, glob: str | None = None, max_results: int = 50) -> str:
         re.compile(pattern)
+        if glob and glob.lstrip().startswith("!"):
+            return "error: glob must not start with '!'"
         rows = (
             self._search_rg(pattern, glob) if shutil.which("rg") else self._search_py(pattern, glob)
         )
@@ -134,9 +136,11 @@ class RepoTools:
         return f"{rel}:{number}: {text.rstrip()[:MAX_LINE_CHARS]}"
 
     def _search_rg(self, pattern: str, glob: str | None) -> Iterator[str]:
+        # A model glob can only narrow the search. Never add --no-ignore or --hidden, and
+        # filter every hit through RepoIgnore below, because an rg --glob overrides rg's ignores.
         cmd = ["rg", "--json", "--no-require-git", "-e", pattern]
         if glob:
-            cmd += ["--glob", glob]
+            cmd.append(f"--glob={glob}")
         cmd.append(".")
         proc = subprocess.run(cmd, cwd=self._root, capture_output=True, text=True, check=False)
         found: list[tuple[str, int, str]] = []
