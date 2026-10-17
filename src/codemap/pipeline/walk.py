@@ -108,6 +108,7 @@ class _Walker:
 
     def _store(self, hop: Hop, verdict: str | None = None) -> None:
         self.hops.append(hop)
+        self.ctx.store.add_hop(self.ctx.trace_id, hop)  # saved now so a crash keeps it
         self.emit("hop_found", f"{_fmt(hop.caller)} -> {_fmt(hop.callee)}", hop_id=hop.id)
         if verdict is not None:
             self.emit("hop_verified", f"{hop.id}: {verdict}", hop_id=hop.id, verdict=verdict)
@@ -117,7 +118,9 @@ class _Walker:
         if error := self._first_error(spec.anchor):
             return f"error: {error}"
         anchor = with_hash(self.ctx.tools, spec.anchor)
-        self.effects.append(Effect(**{**spec.model_dump(), "anchor": anchor}))
+        effect = Effect(**{**spec.model_dump(), "anchor": anchor})
+        self.effects.append(effect)
+        self.ctx.store.add_walk_effect(self.ctx.trace_id, effect)
         return "recorded"
 
 

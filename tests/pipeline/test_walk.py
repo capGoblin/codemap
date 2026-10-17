@@ -1,10 +1,13 @@
 import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from codemap.agents.model import ModelError
 from codemap.domain.events import Event
-from codemap.domain.models import Anchor
+from codemap.domain.models import Anchor, Trace
 from codemap.pipeline.context import TraceContext, build_context
 from codemap.pipeline.walk import walk_path
 from codemap.settings import Settings
@@ -34,11 +37,22 @@ def verdict(**fields: Any) -> Any:
     return resp(tool_use("submit", fields, "v"))
 
 
+def new_ctx(repo: Path, model: ScriptedModel) -> TraceContext:
+    ctx = build_context(repo, Settings(), "t1", model=model)
+    ctx.store.create_trace(
+        Trace(
+            id="t1", question="q", entry=ENTRY, commit_sha=None, dirty=False,
+            status="running", mode="eager", created_at=datetime.now(UTC), model="m",
+        )
+    )  # fmt: skip
+    return ctx
+
+
 def make(tmp_path: Path, responses: list[Any]) -> tuple[TraceContext, ScriptedModel, list[Event]]:
     repo = tmp_path / "repo"
     shutil.copytree(FIXTURE, repo)
     model = ScriptedModel(responses)
-    ctx = build_context(repo, Settings(), "t1", model=model)
+    ctx = new_ctx(repo, model)
     events: list[Event] = []
     inner = ctx.emit
 
@@ -118,7 +132,7 @@ def test_walk_model_error_partial(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     shutil.copytree(FIXTURE, repo)
     script = [hop(UPLOAD, ACCEPT, "a"), hop(ACCEPT, UPLOAD, "b")]
-    ctx = build_context(repo, Settings(), "t1", model=Boom(script))
+    ctx = new_ctx(repo, Boom(script))
     result = walk_path(ctx, ENTRY, "q")
     assert result.partial_reason and "429" in result.partial_reason
     assert len(result.hops) == 2
@@ -142,6 +156,23 @@ def test_walk_hop_limit_and_effects(tmp_path: Path) -> None:
     result = walk_path(ctx, ENTRY, "q")
     assert result.effects[0].anchor.content_hash
     assert len(result.hops) == 1
+    assert len(ctx.store.get_walk_effects("t1")) == 1
     reply = model.requests[3]["messages"][-1]["content"][0]["content"]
     assert reply == "hop limit reached; call submit"
     assert result.partial_reason and "limit" in result.partial_reason
+
+
+def test_walk_persists_hops_as_recorded(tmp_path: Path) -> None:
+    class Crash(ScriptedModel):
+        def respond(self, **kw: Any) -> Any:
+            if len(self.requests) == 2:
+                raise RuntimeError("boom")  # not a ModelError, so walk_path does not catch it
+            return super().respond(**kw)
+
+    repo = tmp_path / "repo"
+    shutil.copytree(FIXTURE, repo)
+    script = [hop(UPLOAD, ACCEPT, "a"), hop(UPLOAD, ACCEPT, "b")]  # both direct: no verifier call
+    ctx = new_ctx(repo, Crash(script))
+    with pytest.raises(RuntimeError):
+        walk_path(ctx, ENTRY, "q")
+    assert len(ctx.store.get_hops("t1")) == 2
