@@ -36,7 +36,7 @@ packages = ["src/codemap"]
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
-extend-exclude = ["docs"]
+extend-exclude = ["docs", "tests/fixtures"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM"]
@@ -45,6 +45,7 @@ select = ["E", "F", "I", "N", "UP", "B", "SIM"]
 strict = true
 mypy_path = "src"
 packages = ["codemap"]
+exclude = ["tests/fixtures/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
