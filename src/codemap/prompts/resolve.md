@@ -14,7 +14,11 @@ or a workflow start.
 # Output (submit)
 
 - At most 5 candidates, best first.
-- Each candidate: file, start_line, end_line, symbol, and one sentence on why it fits.
+- Each candidate has these fields:
+  - `anchor`: an object with `file`, `start_line`, `end_line` and `symbol`.
+  - `label`: a short name, for example `POST /upload` or `cli parse`.
+  - `reason`: one sentence on why it fits.
+- Submit as `{"candidates": [...]}`.
 - Cite the definition range of the entry function, not the file.
 - Mention the route path, command name or trigger in the sentence when there is one.
 
