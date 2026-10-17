@@ -7,9 +7,13 @@ import shutil
 import subprocess
 from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from codemap.repo.ignore import RepoIgnore
 from codemap.repo.sandbox import OutsideRepoError, resolve_inside
+
+if TYPE_CHECKING:
+    from codemap.repo.index import SymbolIndex
 
 PAGE_LINES = 400
 MAX_LINE_CHARS = 2000
@@ -43,6 +47,7 @@ class RepoTools:
     def __init__(self, root: Path, ignore: RepoIgnore) -> None:
         self._root = root.resolve()
         self._ignore = ignore
+        self.index: SymbolIndex | None = None
 
     def _rel(self, path: Path) -> str:
         return path.relative_to(self._root).as_posix()
@@ -90,10 +95,27 @@ class RepoTools:
             out.append(f"... {more} more lines; call read_file with start={last + 1}")
         return "\n".join(out)
 
-    @_safe
     def file_text(self, path: str) -> str:
-        """Raw text for code use only. Not a tool the agent calls."""
+        """Raw text for code use only. Not a tool the agent calls. Raises on bad paths."""
         return self._resolve_visible(path).read_text(errors="replace")
+
+    def outline(self, path: str) -> str:
+        if self.index is None:
+            return "error: no symbol index"
+        rows = [
+            f"{path}:{s.start_line}-{s.end_line} {s.kind} {s.name} {s.signature}"
+            for s in self.index.outline(path)
+        ]
+        return "\n".join(rows) or f"no symbols found in {path}"
+
+    def find_definition(self, symbol: str) -> str:
+        if self.index is None:
+            return "error: no symbol index"
+        rows = [
+            f"{p}:{s.start_line}-{s.end_line} {s.kind} {s.name} {s.signature}"
+            for p, s in self.index.find_definition(symbol)
+        ]
+        return "\n".join(rows) or f"no definition found for {symbol}"
 
     @_safe
     def search(self, pattern: str, glob: str | None = None, max_results: int = 50) -> str:
