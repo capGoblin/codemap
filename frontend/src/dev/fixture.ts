@@ -1,4 +1,6 @@
-import type { Anchor, DetailLoader, Effect, EffectCategory, EffectOp, FunctionDetail, Node, TraceGraph } from "../api/types";
+import type {
+  Anchor, DetailLoader, Effect, EffectCategory, EffectOp, FunctionDetail, Node, NodeExplain, TraceGraph,
+} from "../api/types";
 
 const anchor = (symbol: string): Anchor => ({
   file: "app/service.py", start_line: 1, end_line: 20, symbol, content_hash: "h",
@@ -8,10 +10,10 @@ const fx = (category: EffectCategory, target: string, op: EffectOp): Effect => (
 });
 function n(
   id: string, level: number, parent: string | null, order: number,
-  title: string, input: string, output: string, effects: Effect[] = [], extra: Partial<Node> = {},
+  title: string, summary: string, effects: Effect[] = [], extra: Partial<Node> = {},
 ): Node {
   return {
-    id, level, parent_id: parent, order, title, summary: "", does: "", input, output,
+    id, level, parent_id: parent, order, title, summary, does: "", input: "", output: "",
     boundary_reason: "", anchors: [anchor(title)], effects, parallel_group: null,
     stale: false, warnings: [], ...extra,
   };
@@ -25,23 +27,29 @@ export const fixtureGraph: TraceGraph = {
     cost_usd: 0,
   },
   nodes: [
-    n("p1", 0, null, 0, "Validate request", "HTTP body", "Order draft", [fx("db", "users", "read")]),
-    n("p2", 0, null, 1, "Charge and store", "Order draft", "Order id", [
+    n("p1", 0, null, 0, "Validate request", "Check the body and load the calling user.", [fx("db", "users", "read")]),
+    n("p2", 0, null, 1, "Charge and store", "Take payment, then save the order and its items.", [
       fx("db", "orders", "write"), fx("http", "payments-api", "read"),
     ]),
-    n("p3", 0, null, 2, "Notify", "Order id", "Receipt", [fx("queue", "order-events", "write")]),
-    n("p1.s1", 1, "p1", 0, "Parse body", "HTTP body", "Dict"),
-    n("p1.s2", 1, "p1", 1, "Load user", "Dict", "User", [fx("db", "users", "read")]),
-    n("p2.s1", 1, "p2", 0, "Charge card", "Order draft", "Payment", [
+    n("p3", 0, null, 2, "Notify", "Publish an order event for downstream consumers.", [fx("queue", "order-events", "write")]),
+    n("p1.s1", 1, "p1", 0, "Parse body", "Turn the HTTP body into a dict."),
+    n("p1.s2", 1, "p1", 1, "Load user", "Fetch the user row by id.", [fx("db", "users", "read")]),
+    n("p2.s1", 1, "p2", 0, "Charge card", "Call the payment provider with an idempotency key.", [
       fx("http", "payments-api", "read"), fx("cache", "idempotency", "read"),
     ]),
-    n("p2.s2", 1, "p2", 1, "Save order", "Payment", "Order id", [
+    n("p2.s2", 1, "p2", 1, "Save order", "Write the order, its items, the invoice and an audit line.", [
       fx("db", "orders", "write"), fx("db", "order_items", "write"),
       fx("object_store", "invoices", "write"), fx("file", "audit.log", "write"),
       fx("cache", "orders", "write"),
     ], { stale: true }),
-    n("p2.s3", 1, "p2", 2, "Payment failed", "Error", "Message", [], {}),
-    n("p3.s1", 1, "p3", 0, "Publish event", "Order id", "Message id", [
+    n("p2.s3", 1, "p2", 2, "Payment failed", "Return an error message to the caller."),
+    n("p2.s2.a", 2, "p2.s2", 0, "Insert order rows", "Add the order and one row per item.", [
+      fx("db", "orders", "write"), fx("db", "order_items", "write"),
+    ]),
+    n("p2.s2.b", 2, "p2.s2", 1, "Store invoice", "Render the invoice and put it in the bucket.", [
+      fx("object_store", "invoices", "write"),
+    ]),
+    n("p3.s1", 1, "p3", 0, "Publish event", "Send the order id to the events queue.", [
       fx("queue", "order-events", "write"),
     ]),
   ],
@@ -51,6 +59,7 @@ export const fixtureGraph: TraceGraph = {
     { source_id: "p1.s1", target_id: "p1.s2", kind: "call" },
     { source_id: "p2.s1", target_id: "p2.s2", kind: "call" },
     { source_id: "p2.s1", target_id: "p2.s3", kind: "error" },
+    { source_id: "p2.s2.a", target_id: "p2.s2.b", kind: "call" },
   ],
 };
 
@@ -82,12 +91,25 @@ const detailFixtures: Record<string, FunctionDetail[]> = {
   ],
 };
 
-// Dev-only loader until the API client exists: any node without a fixture gets a stub.
+const saveExplain: NodeExplain = {
+  steps: [
+    { text: "Create the order and add one row per item.", file: "app/service.py", lines: [49, 52] },
+    { text: "Commit, then store the invoice PDF.", file: "app/service.py", lines: [53, 54] },
+    { text: "Write the audit line and cache the order.", file: "app/service.py", lines: [55, 56] },
+  ],
+  input: { type: "Payment, OrderDraft", fields: ["payment.id", "draft.items"], node_id: "p2.s1" },
+  output: { type: "str (order id)", fields: [], node_id: "p3" },
+};
+
+// Dev-only loader: any node without a fixture gets a stub.
 export const fixtureDetailLoader: DetailLoader = async (_traceId, nodeId) => ({
-  explain: null,
-  explain_error: null,
-  calls: [],
-  effects: [],
+  explain: nodeId === "p2.s2" ? saveExplain : null,
+  explain_error: nodeId === "p2.s2" ? null : "no model in the fixture",
+  calls: nodeId === "p2.s2" ? [{ symbol: "render_invoice", node_id: "p2.s2.b" }, { symbol: "cache.set", node_id: null }] : [],
+  effects:
+    nodeId === "p2.s2"
+      ? [{ ...fx("db", "orders", "write"), anchor: { ...anchor("save_order"), start_line: 50, end_line: 50 } }]
+      : [],
   functions: detailFixtures[nodeId] ?? [
     {
       anchor: anchor(nodeId),

@@ -28,10 +28,10 @@ describe("store", () => {
     expect(useStore.getState().openIds.has("P1")).toBe(false);
   });
 
-  it("expandAll opens every phase and requests fit-all; collapseAll closes", () => {
+  it("expandAll opens every node that has children and requests fit-all; collapseAll closes", () => {
     useStore.getState().toggleOpen("P1");
     useStore.getState().expandAll();
-    expect([...useStore.getState().openIds].sort()).toEqual(["P1", "P2"]);
+    expect([...useStore.getState().openIds]).toEqual(["P1"]);
     expect(useStore.getState().cameraRequest).toEqual({ kind: "all" });
     useStore.getState().collapseAll();
     expect(useStore.getState().openIds.size).toBe(0);
@@ -64,12 +64,36 @@ describe("focusNode", () => {
   beforeEach(() => useStore.setState({ graph: g, openIds: new Set(), cameraRequest: null }));
   it("opens the parent phase of a step and requests focus", () => {
     useStore.getState().focusNode("s1");
-    expect(useStore.getState().openIds.has("P1")).toBe(true);
+    expect([...useStore.getState().openIds]).toEqual(["P1"]);
     expect(useStore.getState().cameraRequest).toEqual({ kind: "focus", id: "s1" });
+  });
+  it("opens every ancestor of a deep node", () => {
+    const deep = { ...g, nodes: [...g.nodes, node("d", 2, "s1", 0), node("e", 3, "d", 0)] };
+    useStore.setState({ graph: deep });
+    useStore.getState().focusNode("e");
+    expect([...useStore.getState().openIds].sort()).toEqual(["P1", "d", "s1"]);
   });
   it("only requests focus for a phase", () => {
     useStore.getState().focusNode("P2");
     expect(useStore.getState().openIds.size).toBe(0);
     expect(useStore.getState().cameraRequest).toEqual({ kind: "focus", id: "P2" });
+  });
+});
+
+describe("panel", () => {
+  it("selecting a node shows Details; tabs and width are clamped", () => {
+    useStore.setState({ panelOpen: false, panelTab: "data" });
+    useStore.getState().selectNode("s1");
+    expect(useStore.getState()).toMatchObject({ panelOpen: true, panelTab: "details" });
+    useStore.getState().showPanel("data");
+    expect(useStore.getState().panelTab).toBe("data");
+    useStore.getState().setPanelWidth(10);
+    expect(useStore.getState().panelWidth).toBe(320);
+  });
+  it("markLeaf closes the node and remembers it", () => {
+    useStore.setState({ openIds: new Set(["P2"]), leaves: new Set() });
+    useStore.getState().markLeaf("P2");
+    expect(useStore.getState().openIds.has("P2")).toBe(false);
+    expect(useStore.getState().leaves.has("P2")).toBe(true);
   });
 });

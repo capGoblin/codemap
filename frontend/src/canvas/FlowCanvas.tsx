@@ -10,12 +10,11 @@ import { layoutInBrowser } from "../graph/layout.browser";
 import type { Box } from "../graph/layout";
 import { nodesTouching } from "../effects/categories";
 import { useStore, type CameraRequest } from "../state/store";
-import { togglePhase } from "../state/expand";
-import { PhaseNode } from "./PhaseNode";
-import { StepNode } from "./StepNode";
+import { toggleNode } from "../state/expand";
+import { NodeCard } from "./NodeCard";
 import { edgeTypes } from "./edges";
 
-const nodeTypes = { phase: PhaseNode, step: StepNode };
+const nodeTypes = { card: NodeCard };
 
 type V = { nodes: VisibleNode[]; edges: VisibleEdge[] };
 export type LayoutFn = (v: V) => Promise<Map<string, Box>>;
@@ -24,6 +23,9 @@ export function FlowCanvas({ layoutFn = layoutInBrowser }: { layoutFn?: LayoutFn
   const graph = useStore((s) => s.graph);
   const openIds = useStore((s) => s.openIds);
   const selectedTarget = useStore((s) => s.selectedTarget);
+  const hidden = useStore((s) => s.hiddenCategories);
+  const leaves = useStore((s) => s.leaves);
+  const selectedId = useStore((s) => s.selectedNodeId);
   const { fitView } = useReactFlow();
   const [laid, setLaid] = useState<{ v: V; boxes: Map<string, Box> } | null>(null);
   const [layoutError, setLayoutError] = useState<string | null>(null);
@@ -32,7 +34,7 @@ export function FlowCanvas({ layoutFn = layoutInBrowser }: { layoutFn?: LayoutFn
   useEffect(() => {
     if (!graph) return;
     let stale = false;
-    const v = buildVisible(graph, openIds);
+    const v = buildVisible(graph, openIds, hidden, leaves);
     layoutFn(v).then(
       (boxes) => {
         if (stale) return;
@@ -47,7 +49,7 @@ export function FlowCanvas({ layoutFn = layoutInBrowser }: { layoutFn?: LayoutFn
     return () => {
       stale = true;
     };
-  }, [graph, openIds, layoutFn]);
+  }, [graph, openIds, hidden, leaves, layoutFn]);
 
   const touching = useMemo(
     () => (graph && selectedTarget ? nodesTouching(graph, selectedTarget) : null),
@@ -62,11 +64,11 @@ export function FlowCanvas({ layoutFn = layoutInBrowser }: { layoutFn?: LayoutFn
       if (!b) continue;
       nodes.push({
         id: vn.id,
-        type: vn.kind,
+        type: "card",
         position: { x: b.x, y: b.y },
         ...(vn.parentId ? { parentId: vn.parentId, extent: "parent" as const } : {}),
         style: { width: b.width, height: b.height },
-        data: { vn, faded: touching !== null && !touching.has(vn.id) },
+        data: { vn, faded: touching !== null && !touching.has(vn.id), selected: vn.id === selectedId },
         draggable: false,
       });
     }
@@ -78,7 +80,7 @@ export function FlowCanvas({ layoutFn = layoutInBrowser }: { layoutFn?: LayoutFn
       data: { kind: e.kind, dimmed: e.dimmed },
     }));
     return { nodes, edges };
-  }, [laid, touching]);
+  }, [laid, touching, selectedId]);
 
   useEffect(() => {
     const req = fitPending.current;
@@ -87,9 +89,9 @@ export function FlowCanvas({ layoutFn = layoutInBrowser }: { layoutFn?: LayoutFn
     // No cleanup: the request is already taken, so cancelling would drop it.
     setTimeout(() => {
       if (req.kind === "focus") {
-        void fitView({ nodes: [{ id: req.id }], padding: 0.25, duration: 400 });
+        void fitView({ nodes: [{ id: req.id }], padding: 0.25, maxZoom: 1, duration: 400 });
       } else {
-        void fitView({ duration: 400 });
+        void fitView({ maxZoom: 1, duration: 400 });
       }
     }, 0);
   }, [nodes]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -104,13 +106,15 @@ export function FlowCanvas({ layoutFn = layoutInBrowser }: { layoutFn?: LayoutFn
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
+        fitViewOptions={{ maxZoom: 1, padding: 0.15 }}
         nodesDraggable={false}
         nodesConnectable={false}
+        elementsSelectable={false}
         minZoom={0.1}
         onNodeClick={(_, n) => {
           const vn = (n.data as { vn: VisibleNode }).vn;
-          if (vn.kind === "phase") togglePhase(vn.id);
-          else selectNode(vn.id);
+          selectNode(vn.id);
+          if (vn.expandable) toggleNode(vn.id);
         }}
       >
         <Background />

@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { Edge, Node, TraceGraph } from "../src/api/types";
 import { buildVisible } from "../src/graph/visible";
-import { layout, PHASE_TOP_PADDING } from "../src/graph/layout";
+import { layout } from "../src/graph/layout";
+import type { Sizer } from "../src/graph/measure";
 import { node } from "./helpers";
 
 const mk = (nodes: Node[], edges: Edge[]) =>
   ({ trace: {} as TraceGraph["trace"], nodes, edges }) as TraceGraph;
+
+// Fixed heights so the tests do not need a browser.
+const sizer: Sizer = {
+  card: (vn) => ({ width: [220, 190, 170][Math.min(vn.depth, 2)]!, height: 100 }),
+  header: () => 60,
+};
 
 describe("layout", () => {
   const g = mk(
@@ -20,27 +27,45 @@ describe("layout", () => {
   );
 
   it("keeps children below the phase header", async () => {
-    const open = await layout(buildVisible(g, new Set(["P1"])));
+    const open = await layout(buildVisible(g, new Set(["P1"])), undefined, sizer);
     for (const id of ["s1", "s2"]) {
-      expect(open.get(id)!.y).toBeGreaterThanOrEqual(PHASE_TOP_PADDING);
+      expect(open.get(id)!.y).toBeGreaterThanOrEqual(60);
     }
   });
 
   it("places P2 right of P1 and grows P1 when opened", async () => {
-    const closed = await layout(buildVisible(g, new Set()));
+    const closed = await layout(buildVisible(g, new Set()), undefined, sizer);
     expect(closed.get("P2")!.x).toBeGreaterThan(closed.get("P1")!.x);
-    expect(closed.get("P1")).toMatchObject({ width: 220, height: 110 });
-    const open = await layout(buildVisible(g, new Set(["P1"])));
+    expect(closed.get("P1")).toMatchObject({ width: 220, height: 100 });
+    const open = await layout(buildVisible(g, new Set(["P1"])), undefined, sizer);
     expect(open.get("P1")!.width).toBeGreaterThan(220);
     expect(open.get("P2")!.x).toBeGreaterThan(closed.get("P2")!.x);
-    expect(open.get("s1")).toMatchObject({ width: 180, height: 90 });
+    expect(open.get("s1")).toMatchObject({ width: 190, height: 100 });
     expect(open.get("s2")!.x).toBeGreaterThan(open.get("s1")!.x);
   });
 
   it("gives an open phase without steps the closed size", async () => {
     const e = mk([node("P1", 0, null, 0)], []);
-    const r = await layout(buildVisible(e, new Set(["P1"])));
-    expect(r.get("P1")).toMatchObject({ width: 220, height: 110 });
+    const r = await layout(buildVisible(e, new Set(["P1"])), undefined, sizer);
+    expect(r.get("P1")).toMatchObject({ width: 220, height: 100 });
+  });
+
+  it("nests three levels: the frame holds its children and is at least 340 wide", async () => {
+    const t = mk(
+      [
+        node("P1", 0, null, 0), node("s1", 1, "P1", 0), node("a", 2, "s1", 0), node("b", 2, "s1", 1),
+      ],
+      [{ source_id: "a", target_id: "b", kind: "call" }],
+    );
+    const r = await layout(buildVisible(t, new Set(["P1", "s1"])), undefined, sizer);
+    const [p, s, a, b] = ["P1", "s1", "a", "b"].map((id) => r.get(id)!);
+    expect(p.width).toBeGreaterThanOrEqual(340);
+    expect(s.width).toBeGreaterThanOrEqual(340);
+    expect(s.x).toBeGreaterThanOrEqual(0);
+    expect(s.x + s.width).toBeLessThanOrEqual(p.width);
+    expect(a.y).toBeGreaterThanOrEqual(60);
+    expect(b.x + b.width).toBeLessThanOrEqual(s.width);
+    expect(a).toMatchObject({ width: 170, height: 100 });
   });
 
   it("puts parallel steps in the same layer", async () => {
@@ -57,7 +82,7 @@ describe("layout", () => {
         { source_id: "c", target_id: "d", kind: "call" },
       ],
     );
-    const r = await layout(buildVisible(p, new Set(["P1"])));
+    const r = await layout(buildVisible(p, new Set(["P1"])), undefined, sizer);
     expect(r.get("c")!.x).toBe(r.get("b")!.x);
     expect(r.get("c")!.y).not.toBe(r.get("b")!.y);
   });
@@ -76,7 +101,7 @@ describe("layout", () => {
     const open = new Set(nodes.filter((n) => n.level === 0).map((n) => n.id));
     const v = buildVisible(mk(nodes, edges), open);
     const t0 = performance.now();
-    const r = await layout(v);
+    const r = await layout(v, undefined, sizer);
     const ms = performance.now() - t0;
     console.log(`layout 40x8 took ${ms.toFixed(0)} ms`);
     expect(r.size).toBe(360);

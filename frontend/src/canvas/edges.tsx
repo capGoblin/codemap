@@ -17,7 +17,7 @@ export function FlowEdge(props: EdgeProps) {
         path={path}
         style={{
           stroke: async_ ? "var(--edge-async)" : "var(--edge)",
-          strokeWidth: 1.5,
+          strokeWidth: 1.75,
           strokeDasharray: async_ ? "6 4" : undefined,
           opacity: data.dimmed ? 0.35 : 1,
         }}

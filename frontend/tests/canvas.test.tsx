@@ -40,6 +40,7 @@ function setup(graph: TraceGraph, open: string[] = []) {
   useStore.setState({
     graph, openIds: new Set(open), selectedNodeId: null, selectedTarget: null,
     hiddenCategories: new Set(), cameraRequest: null, expandErrors: new Map(),
+    leaves: new Set(), panelOpen: true, panelTab: "details",
   });
   return render(
     <ReactFlowProvider>
@@ -63,20 +64,21 @@ beforeEach(() => cleanup());
 afterEach(() => cleanup());
 
 describe("canvas", () => {
-  it("clicking a phase toggles openIds", async () => {
-    setup(graphWith([]));
-    const el = await screen.findByTestId("node-p");
+  it("clicking a node toggles openIds and selects it", async () => {
+    setup(fixtureGraph);
+    const el = await screen.findByTestId("node-p1");
     fireEvent.click(el);
-    expect(useStore.getState().openIds.has("p")).toBe(true);
-    fireEvent.click(el);
-    expect(useStore.getState().openIds.has("p")).toBe(false);
+    expect(useStore.getState().openIds.has("p1")).toBe(true);
+    expect(useStore.getState().selectedNodeId).toBe("p1");
+    fireEvent.click(await screen.findByTestId("node-p1"));
+    expect(useStore.getState().openIds.has("p1")).toBe(false);
   });
 
-  it("shows 3 chips and +2 for 5 effects", async () => {
+  it("shows 2 chips and +3 for 5 effects", async () => {
     setup(graphWith(["a", "b", "c", "d", "e"].map((t) => eff("db", t))));
     await screen.findByTestId("node-p");
-    expect(screen.getAllByTestId("chip")).toHaveLength(3);
-    expect(screen.getByText("+2")).toBeTruthy();
+    expect(screen.getAllByTestId("chip")).toHaveLength(2);
+    expect(screen.getByText("+3")).toBeTruthy();
   });
 
   it("hiding DB removes DB chips", async () => {
@@ -86,6 +88,16 @@ describe("canvas", () => {
     fireEvent.click(screen.getByRole("button", { name: "DB" }));
     await waitFor(() => expect(screen.getAllByTestId("chip")).toHaveLength(1));
     expect(screen.getByTestId("chip").getAttribute("data-category")).toBe("cache");
+  });
+
+  it("a card has title, summary, a caret and no input/output line or signature", async () => {
+    setup(fixtureGraph);
+    const card = await screen.findByTestId("node-p2");
+    expect(card.textContent).toContain("Charge and store");
+    expect(card.textContent).toContain("Take payment");
+    expect(card.textContent).toContain("▸");
+    expect(card.textContent).not.toContain("→");
+    expect(card.textContent).not.toContain("def ");
   });
 
   it("stale node shows 'code changed'", async () => {
@@ -104,9 +116,11 @@ describe("canvas", () => {
     expect(screen.getByTestId("node-p").style.opacity).toBe("1");
   });
 
-  it("opens steps inside a phase", async () => {
-    setup(fixtureGraph, ["p1"]);
-    expect(await screen.findByTestId("node-p1.s1")).toBeTruthy();
+  it("opens nodes to any depth", async () => {
+    setup(fixtureGraph, ["p2", "p2.s2"]);
+    expect(await screen.findByTestId("node-p2.s2.a")).toBeTruthy();
+    expect(screen.getByTestId("node-p2.s2").className).toContain("frame");
+    expect(screen.queryByTestId("node-p1.s1")).toBeNull();
   });
 
   it("test_refetch_does_not_move_camera", async () => {
@@ -127,7 +141,7 @@ describe("canvas", () => {
     fitView.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "Fit" }));
     expect(fitView).toHaveBeenCalledTimes(1);
-    expect(fitView).toHaveBeenCalledWith({ duration: 400 });
+    expect(fitView).toHaveBeenCalledWith({ maxZoom: 1, duration: 400 });
   });
 
   it("shows banner-err when layout rejects", async () => {

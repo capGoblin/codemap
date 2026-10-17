@@ -1,6 +1,7 @@
 import ELK from "elkjs/lib/elk-api.js";
 import elkWorkerUrl from "elkjs/lib/elk-worker.min.js?url";
 import { layout, type Box } from "./layout";
+import { pageSizer } from "./measure";
 import type { VisibleEdge, VisibleNode } from "./visible";
 
 type V = { nodes: VisibleNode[]; edges: VisibleEdge[] };
@@ -12,7 +13,7 @@ let elk: InstanceType<typeof ELK> | null = null; // created on first use so impo
 export function layoutInBrowser(v: V): Promise<Map<string, Box>> {
   return new Promise((ok, fail) => {
     const timer = setTimeout(() => fail(new Error("layout timed out")), TIMEOUT_MS);
-    layout(v, (elk ??= new ELK({ workerUrl: elkWorkerUrl }))).then(
+    layout(v, (elk ??= new ELK({ workerUrl: elkWorkerUrl })), pageSizer).then(
       (m) => {
         clearTimeout(timer);
         ok(m);
