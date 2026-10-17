@@ -78,6 +78,8 @@ class RoutedModel:
         }
 
     def respond(self, *, system: str, messages: list, tools: list, max_tokens: int) -> Any:
+        if system == prompt("walk_deepen"):
+            return submit(done=True)
         if system == prompt("split_phases"):
             return self.phases
         if system == prompt("split_steps"):

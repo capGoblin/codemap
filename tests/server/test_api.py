@@ -123,6 +123,16 @@ def test_expand_eager_with_children_409(client: TestClient, make_trace: MakeTrac
     assert client.post(f"/api/v1/traces/{eager}/nodes/{phase['id']}/expand").status_code == 409
 
 
+def test_expand_force_rebuilds_children(client: TestClient, make_trace: MakeTrace) -> None:
+    eager = make_trace("eager")
+    phase = next(
+        n for n in client.get(f"/api/v1/traces/{eager}").json()["nodes"] if n["title"] == "intake"
+    )
+    r = client.post(f"/api/v1/traces/{eager}/nodes/{phase['id']}/expand?force=1")
+    assert r.status_code == 200
+    assert {"accept", "queue"} <= {n["title"] for n in r.json()["nodes"]}
+
+
 def test_expand_unknown_404(client: TestClient, make_trace: MakeTrace) -> None:
     trace_id = make_trace("lazy")
     assert client.post(f"/api/v1/traces/{trace_id}/nodes/nope/expand").status_code == 404

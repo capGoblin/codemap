@@ -71,21 +71,22 @@ def _add_warning(node: Node, text: str, warnings: list[str]) -> Node:
 
 
 def _rollup(nodes: list[Node], warnings: list[str]) -> list[Node]:
-    steps: dict[str, list[Node]] = {}
+    """From the leaves up: a node's effects = children's effects + its own uncovered ones."""
+    kids: dict[str, list[Node]] = {}
     for n in nodes:
-        if n.level == 1 and n.parent_id:
-            steps.setdefault(n.parent_id, []).append(n)
-    out: list[Node] = []
-    for n in nodes:
-        children = sorted(steps.get(n.id, []), key=lambda s: s.order)
-        if n.level == 0 and children:
-            # Steps may cover only part of the phase. Keep effects on the lines they skip.
+        if n.parent_id:
+            kids.setdefault(n.parent_id, []).append(n)
+    done: dict[str, Node] = {}
+    for n in sorted(nodes, key=lambda x: x.level, reverse=True):
+        children = sorted((done[c.id] for c in kids.get(n.id, [])), key=lambda s: s.order)
+        if children:
+            # Children may cover only part of the node. Keep effects on the lines they skip.
             effects = dedupe_effects((*rollup_effects(children), *uncovered_effects(n, children)))
             n = n.model_copy(update={"effects": effects})
             if (problem := io_chain_warning(n, children)) is not None:
                 n = _add_warning(n, problem, warnings)
-        out.append(n)
-    return out
+        done[n.id] = n
+    return [done[n.id] for n in nodes]
 
 
 def validate_graph(
@@ -94,21 +95,27 @@ def validate_graph(
     edges: list[Edge],
     points: list[Anchor],
     side_ids: set[str] | frozenset[str] = frozenset(),
+    context: Sequence[Node] = (),
 ) -> ValidationReport:
+    """Check `nodes`. `context` nodes are already stored: they serve as parents only."""
     kept: list[Node] = []
     drops: list[str] = []
-    by_id = {n.id: n for n in nodes}
+    by_id = {n.id: n for n in [*context, *nodes]}
     for node in nodes:
         checked, problems = _grounded(tools, node, by_id.get(node.parent_id or ""))
         if (why := _drop_reason(checked, problems, points, side_ids)) is None:
             kept.append(checked)
         else:
             drops.append(f"dropped L{node.level} {node.title!r}: {why}")
-    alive = {n.id for n in kept}
-    orphans = [n for n in kept if n.parent_id is not None and n.parent_id not in alive]
-    drops.extend(f"dropped L{n.level} {n.title!r}: parent was dropped" for n in orphans)
-    kept = [n for n in kept if n.parent_id is None or n.parent_id in alive]
-    alive = {n.id for n in kept}
+    known = {n.id for n in context}
+    while True:  # a dropped node takes its whole subtree with it
+        alive = {n.id for n in kept} | known
+        orphans = [n for n in kept if n.parent_id is not None and n.parent_id not in alive]
+        if not orphans:
+            break
+        drops.extend(f"dropped L{n.level} {n.title!r}: parent was dropped" for n in orphans)
+        gone = {n.id for n in orphans}
+        kept = [n for n in kept if n.id not in gone]
     warnings: list[str] = []
     kept = _rollup(kept, warnings)
     kept_edges = [e for e in edges if e.source_id in alive and e.target_id in alive]

@@ -152,3 +152,18 @@ def test_phase_keeps_effects_no_step_covers() -> None:
     r = validate_graph(tools(), [phase, step], [], POINTS)
     (out,) = [n for n in r.nodes if n.id == "p"]
     assert out.effects == (covered, uncovered)
+
+
+def test_validate_rollup_is_recursive_and_drop_takes_subtree() -> None:
+    inner = Anchor(file="app/documents.py", start_line=13, end_line=13, symbol="accept_document")
+    effect = db_write(ACCEPT)
+    top = mk("p", (UPLOAD, ACCEPT))
+    mid = mk("m", (ACCEPT,), level=1, parent="p")
+    leaf = mk("l", (inner,), level=2, parent="m", effects=(effect,))
+    r = validate_graph(tools(), [top, mid, leaf], [], POINTS)
+    assert {n.id: n.effects for n in r.nodes}["p"] == (effect,)
+    assert {n.id: n.effects for n in r.nodes}["m"] == (effect,)
+    bad_mid = mk("m", (LEGACY,), level=1, parent="p")
+    r = validate_graph(tools(), [top, bad_mid, leaf], [], POINTS)
+    assert [n.id for n in r.nodes] == ["p"]
+    assert r.dropped == 2
