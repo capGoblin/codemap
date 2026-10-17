@@ -26,7 +26,6 @@ export function FlowCanvas({ layoutFn = layoutInBrowser }: { layoutFn?: LayoutFn
   const { fitView } = useReactFlow();
   const [laid, setLaid] = useState<{ v: V; boxes: Map<string, Box> } | null>(null);
   const [layoutError, setLayoutError] = useState<string | null>(null);
-  const firstLayout = useRef(true); // the first layout fits everything
   const fitPending = useRef<CameraRequest>(null);
 
   useEffect(() => {
@@ -37,8 +36,8 @@ export function FlowCanvas({ layoutFn = layoutInBrowser }: { layoutFn?: LayoutFn
       (boxes) => {
         if (stale) return;
         const req = useStore.getState().takeCameraRequest();
-        fitPending.current = req ?? (firstLayout.current ? { kind: "all" } : null);
-        firstLayout.current = false;
+        // The first fit is done by the <ReactFlow fitView> prop once nodes are measured.
+        fitPending.current = req;
         setLayoutError(null);
         setLaid({ v, boxes });
       },
@@ -84,15 +83,15 @@ export function FlowCanvas({ layoutFn = layoutInBrowser }: { layoutFn?: LayoutFn
     const req = fitPending.current;
     if (!req || nodes.length === 0) return;
     fitPending.current = null;
-    const t = setTimeout(() => {
+    // No cleanup: the request is already taken, so cancelling would drop it.
+    setTimeout(() => {
       if (req.kind === "focus") {
         void fitView({ nodes: [{ id: req.id }], padding: 0.25, duration: 400 });
       } else {
         void fitView({ duration: 400 });
       }
     }, 0);
-    return () => clearTimeout(t);
-  }, [nodes, fitView]);
+  }, [nodes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { selectNode, toggleOpen } = useStore.getState();
   return (
@@ -103,6 +102,7 @@ export function FlowCanvas({ layoutFn = layoutInBrowser }: { layoutFn?: LayoutFn
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
+        fitView
         nodesDraggable={false}
         nodesConnectable={false}
         minZoom={0.1}

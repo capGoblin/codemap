@@ -113,19 +113,17 @@ describe("canvas", () => {
     fitView.mockClear();
     setup(fixtureGraph);
     await screen.findByTestId("node-p1");
-    await waitFor(() => expect(fitView).toHaveBeenCalledTimes(1)); // first layout fits all
     fireEvent.click(screen.getByTestId("node-p1"));
-    await waitFor(() => expect(fitView).toHaveBeenCalledTimes(2));
-    expect(fitView.mock.calls[1]![0]).toMatchObject({ nodes: [{ id: "p1" }] });
+    await waitFor(() => expect(fitView).toHaveBeenCalledTimes(1));
+    expect(fitView.mock.calls[0]![0]).toMatchObject({ nodes: [{ id: "p1" }] });
     act(() => useStore.getState().setGraph({ ...fixtureGraph }));
     await new Promise((r) => setTimeout(r, 50));
-    expect(fitView).toHaveBeenCalledTimes(2);
+    expect(fitView).toHaveBeenCalledTimes(1);
   });
 
   it("Fit button calls fitView with no graph or openIds change", async () => {
     setup(fixtureGraph);
     await screen.findByTestId("node-p1");
-    await waitFor(() => expect(fitView).toHaveBeenCalled());
     fitView.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "Fit" }));
     expect(fitView).toHaveBeenCalledTimes(1);

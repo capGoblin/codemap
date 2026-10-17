@@ -6,6 +6,8 @@ type V = { nodes: VisibleNode[]; edges: VisibleEdge[] };
 
 const PHASE = { width: 220, height: 110 };
 const STEP = { width: 180, height: 90 };
+// Fits the open phase header: title, input -> output line and one chip row.
+export const PHASE_TOP_PADDING = 96;
 
 // Steps of one parallel group must share a layer. We give every member the
 // union of the group's incoming sources, so layering cannot separate them.
@@ -44,7 +46,7 @@ export function toElk(v: V): ElkNode {
       const el: ElkNode = { id: n.id };
       if (n.open && hasChild.has(n.id)) {
         el.children = [];
-        el.layoutOptions = { "elk.padding": "[top=40,left=20,bottom=20,right=20]" };
+        el.layoutOptions = { "elk.padding": `[top=${PHASE_TOP_PADDING},left=20,bottom=20,right=20]` };
       } else {
         Object.assign(el, PHASE);
       }

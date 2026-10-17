@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Edge, Node, TraceGraph } from "../src/api/types";
 import { buildVisible } from "../src/graph/visible";
-import { layout } from "../src/graph/layout";
+import { layout, PHASE_TOP_PADDING } from "../src/graph/layout";
 import { node } from "./helpers";
 
 const mk = (nodes: Node[], edges: Edge[]) =>
@@ -18,6 +18,13 @@ describe("layout", () => {
       { source_id: "s1", target_id: "s2", kind: "call" },
     ],
   );
+
+  it("keeps children below the phase header", async () => {
+    const open = await layout(buildVisible(g, new Set(["P1"])));
+    for (const id of ["s1", "s2"]) {
+      expect(open.get(id)!.y).toBeGreaterThanOrEqual(PHASE_TOP_PADDING);
+    }
+  });
 
   it("places P2 right of P1 and grows P1 when opened", async () => {
     const closed = await layout(buildVisible(g, new Set()));
