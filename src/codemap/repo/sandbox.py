@@ -1,5 +1,6 @@
 """Path sandbox: every agent-supplied path must resolve inside the repo root."""
 
+import os
 from pathlib import Path
 
 
@@ -19,3 +20,28 @@ def resolve_inside(root: Path, rel: str) -> Path:
     if not real.is_relative_to(real_root):
         raise OutsideRepoError(f"path is outside the repo: {rel!r}")
     return real
+
+
+def canonical_rel(root: Path, rel: str) -> str:
+    """Spell each part of `rel` as it is on disk, so case variants cannot dodge an ignore rule.
+
+    A part is renamed only when exactly one entry matches it ignoring case. Parts that do not
+    exist stay as given. `rel` must already be inside `root`.
+    """
+    current = root
+    parts: list[str] = []
+    for part in Path(rel).parts:
+        if part in (".", ""):
+            continue
+        name = part
+        try:
+            names = os.listdir(current)
+        except OSError:
+            names = []
+        if part not in names:
+            same = [n for n in names if n.lower() == part.lower()]
+            if len(same) == 1:
+                name = same[0]
+        parts.append(name)
+        current = current / name
+    return "/".join(parts) or "."

@@ -52,6 +52,8 @@ SECRET_PATTERNS = [
     ".aws/",
     ".ssh/",
     ".gnupg/",
+    ".git-credentials",
+    "*.tfvars",
 ]
 
 GIT_TIMEOUT_S = 60
@@ -83,7 +85,9 @@ class RepoIgnore:
         for dirpath, dirnames, filenames in os.walk(root):
             rel_dir = Path(dirpath).relative_to(root).as_posix()
             prefix = "" if rel_dir == "." else rel_dir + "/"
-            dirnames[:] = [d for d in dirnames if not self._base.match_file(f"{prefix}{d}/")]
+            dirnames[:] = [
+                d for d in dirnames if not self._base.match_file(f"{prefix}{d}/".lower())
+            ]
             if ".gitignore" in filenames:
                 lines = (Path(dirpath) / ".gitignore").read_text(errors="replace").splitlines()
                 found["" if rel_dir == "." else rel_dir] = pathspec.PathSpec.from_lines(
@@ -93,7 +97,7 @@ class RepoIgnore:
 
     def is_ignored(self, rel: str) -> bool:
         """`rel` is relative to the root. End it with `/` for a directory."""
-        if self._base.match_file(rel):
+        if self._base.match_file(rel.lower()):  # defaults and deny list ignore case
             return True
         parts = rel.rstrip("/").split("/")
         for i in range(1, len(parts) + 1):

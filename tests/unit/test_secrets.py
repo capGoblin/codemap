@@ -94,3 +94,58 @@ def test_search_clamps_max_results(repo: Path) -> None:
     (repo / "many.txt").write_text("hit\n" * 500)
     out = RepoTools(repo, RepoIgnore(repo)).search("hit", None, 10_000)
     assert len(out.splitlines()) == 200
+
+
+@pytest.fixture
+def cased(repo: Path) -> RepoTools:
+    probe = repo / "app.py"
+    if not (repo / "APP.PY").exists() or not probe.samefile(repo / "APP.PY"):
+        pytest.skip("temp filesystem is case-sensitive")
+    (repo / "svc" / "secret.txt").write_text(f"API_KEY={SECRET}\n")
+    excluded = "svc/secret.txt\nsvc/personal.txt\nsvc/privdir/\n"
+    (repo / ".git" / "info" / "exclude").write_text(excluded)
+    (repo / "svc" / "privdir").mkdir()
+    (repo / "svc" / "privdir" / "defs.py").write_text(f"def leak():\n    k = '{SECRET}'\n")
+    return RepoTools(repo, RepoIgnore(repo))
+
+
+@pytest.mark.parametrize(
+    "path",
+    [".ENV", "web/.ENV.LOCAL", "SVC/secret.txt", "svc/PRIVDIR/defs.py", ".GIT/config", "ID_RSA"],
+)
+def test_case_variants_are_refused(cased: RepoTools, path: str) -> None:
+    out = cased.read_file(path)
+    assert SECRET not in out and out.startswith("error")
+
+
+def test_case_variant_dirs_and_outline_are_refused(cased: RepoTools) -> None:
+    assert cased.list_dir("SVC/PRIVDIR").startswith("error")
+    assert "leak" not in cased.outline("SVC/privdir/defs.py")
+    assert "leak" not in cased.outline("svc/PRIVDIR/defs.py")
+    assert cased.list_dir("SVC").splitlines() == ["ok.py"]
+
+
+def test_case_variant_of_visible_file_still_reads(cased: RepoTools) -> None:
+    assert "def main" in cased.read_file("APP.PY")
+
+
+def test_python_search_does_not_follow_symlinks_into_ignored_files(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (repo / "normal.txt").symlink_to(repo / ".env")
+    (repo / "svc" / "personal_link.py").symlink_to(repo / "web" / ".env.local")
+    monkeypatch.setattr("codemap.repo.tools.shutil.which", lambda _name: None)
+    tools = RepoTools(repo, RepoIgnore(repo))
+    assert SECRET not in tools.search("API_KEY")
+
+
+def test_tfvars_and_git_credentials_hidden(repo: Path) -> None:
+    ignore = RepoIgnore(repo)
+    assert ignore.is_ignored("infra/prod.tfvars") and ignore.is_ignored(".git-credentials")
+
+
+def test_rg_search_stops_at_the_limit(repo: Path) -> None:
+    (repo / "a.txt").write_text("hit\n" * 100)
+    (repo / "b.txt").write_text("hit\n" * 100)
+    out = RepoTools(repo, RepoIgnore(repo)).search("hit", None, 5).splitlines()
+    assert len(out) == 5 and all(r.startswith("a.txt:") for r in out)
