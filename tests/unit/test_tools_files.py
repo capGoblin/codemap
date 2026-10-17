@@ -91,3 +91,19 @@ def test_tool_returns_error_text_outside_root(tools: RepoTools) -> None:
         tools.read_file("missing.py"),
     ):
         assert out.startswith("error:")
+
+
+def test_read_file_ignored_path(tools: RepoTools) -> None:
+    for path in ("build/out.py", "node_modules/x.js"):
+        assert tools.read_file(path).startswith("error: path is ignored")
+        assert tools.file_text(path).startswith("error: path is ignored")
+
+
+def test_list_dir_ignored_dir(tools: RepoTools) -> None:
+    assert tools.list_dir("node_modules").startswith("error: path is ignored")
+
+
+def test_read_file_dot_git(repo: Path, tools: RepoTools) -> None:
+    (repo / ".git").mkdir()
+    (repo / ".git" / "config").write_text("[core]\n")
+    assert tools.read_file(".git/config").startswith("error: path is ignored")

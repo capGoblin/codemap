@@ -47,9 +47,17 @@ class RepoTools:
     def _rel(self, path: Path) -> str:
         return path.relative_to(self._root).as_posix()
 
+    def _resolve_visible(self, path: str, *, is_dir: bool = False) -> Path:
+        """Resolve inside the root and refuse ignored paths."""
+        real = resolve_inside(self._root, path)
+        rel = self._rel(real)
+        if rel != "." and self._ignore.is_ignored(rel + "/" if is_dir else rel):
+            raise OutsideRepoError(f"path is ignored: {rel}")
+        return real
+
     @_safe
     def list_dir(self, path: str = ".") -> str:
-        directory = resolve_inside(self._root, path)
+        directory = self._resolve_visible(path, is_dir=True)
         rows = []
         for entry in sorted(directory.iterdir(), key=lambda e: e.name):
             is_dir = entry.is_dir()
@@ -61,7 +69,7 @@ class RepoTools:
 
     @_safe
     def read_file(self, path: str, start: int = 1, end: int | None = None) -> str:
-        file = resolve_inside(self._root, path)
+        file = self._resolve_visible(path)
         if _is_binary(file):
             return "binary file, not shown"
         start = max(start, 1)
@@ -85,7 +93,7 @@ class RepoTools:
     @_safe
     def file_text(self, path: str) -> str:
         """Raw text for code use only. Not a tool the agent calls."""
-        return resolve_inside(self._root, path).read_text(errors="replace")
+        return self._resolve_visible(path).read_text(errors="replace")
 
     @_safe
     def search(self, pattern: str, glob: str | None = None, max_results: int = 50) -> str:
