@@ -1,6 +1,6 @@
 # Job
 
-You get the ordered points of a recorded execution path, one per line: `index: file:line symbol`. Cut the path into contiguous phases. Phases cover the whole path, in order, with no gaps and no overlap.
+You get the ordered points of a recorded execution path, one per line: `index: file:start-end symbol`. Cut the path into contiguous phases. Phases cover the whole path, in order, with no gaps and no overlap.
 
 # How to split
 
