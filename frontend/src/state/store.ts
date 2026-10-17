@@ -2,13 +2,15 @@ import { create } from "zustand";
 import type { TraceGraph } from "../api/types";
 import type { UiCategory } from "../effects/categories";
 
+export type CameraRequest = { kind: "focus"; id: string } | { kind: "all" } | null;
+
 type State = {
   graph: TraceGraph | null;
   openIds: Set<string>;
   selectedNodeId: string | null;
   selectedTarget: string | null; // key "category:target"
   hiddenCategories: Set<UiCategory>;
-  focusNodeId: string | null; // node the camera must zoom to
+  cameraRequest: CameraRequest; // one-shot: consumed by the next layout
   expandErrors: Map<string, string>;
 };
 
@@ -17,19 +19,20 @@ type Actions = {
   toggleOpen: (id: string) => void;
   expandAll: () => void;
   collapseAll: () => void;
+  takeCameraRequest: () => CameraRequest;
   selectNode: (id: string | null) => void;
   selectTarget: (key: string | null) => void;
   toggleCategory: (c: UiCategory) => void;
   setExpandError: (id: string, msg: string | null) => void;
 };
 
-export const useStore = create<State & Actions>((set) => ({
+export const useStore = create<State & Actions>((set, get) => ({
   graph: null,
   openIds: new Set(),
   selectedNodeId: null,
   selectedTarget: null,
   hiddenCategories: new Set(),
-  focusNodeId: null,
+  cameraRequest: null,
   expandErrors: new Map(),
 
   setGraph: (graph) => set({ graph }),
@@ -38,14 +41,19 @@ export const useStore = create<State & Actions>((set) => ({
       const openIds = new Set(s.openIds);
       if (openIds.delete(id)) return { openIds };
       openIds.add(id);
-      return { openIds, focusNodeId: id };
+      return { openIds, cameraRequest: { kind: "focus", id } };
     }),
   expandAll: () =>
     set((s) => ({
       openIds: new Set((s.graph?.nodes ?? []).filter((n) => n.level === 0).map((n) => n.id)),
-      focusNodeId: null,
+      cameraRequest: { kind: "all" },
     })),
   collapseAll: () => set({ openIds: new Set() }),
+  takeCameraRequest: () => {
+    const r = get().cameraRequest;
+    if (r) set({ cameraRequest: null });
+    return r;
+  },
   selectNode: (selectedNodeId) => set({ selectedNodeId }),
   selectTarget: (selectedTarget) => set({ selectedTarget }),
   toggleCategory: (c) =>
