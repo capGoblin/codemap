@@ -5,7 +5,8 @@ root_package = codemap
 name = layers
 type = layers
 layers =
-    codemap.cli | codemap.server
+    codemap.cli
+    codemap.server
     codemap.service
     codemap.pipeline
     codemap.store : codemap.repo : codemap.agents

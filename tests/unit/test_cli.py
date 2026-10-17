@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 from codemap import __version__
 from codemap.agents.model import ModelError
 from codemap.cli import main as cli_main
+from codemap.cli import open as open_cmd
 from codemap.service import Service
 from codemap.settings import Settings
 from fakes import resp, text
@@ -38,6 +39,15 @@ def run(repo: Path, *args: str, input: str | None = None) -> Any:
     return runner.invoke(cli_main.app, ["--repo", str(repo), *args], input=input)
 
 
+def fake_browser(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Replace the server, the browser and the blocking wait. Return the opened URLs."""
+    opened: list[str] = []
+    monkeypatch.setattr(open_cmd, "serve_in_background", lambda service: "http://127.0.0.1:1")
+    monkeypatch.setattr(open_cmd.webbrowser, "open", lambda url: opened.append(url) or True)
+    monkeypatch.setattr(open_cmd, "block_until_interrupt", lambda: None)
+    return opened
+
+
 def test_version_flag() -> None:
     result = runner.invoke(cli_main.app, ["--version"])
     assert result.exit_code == 0
@@ -63,7 +73,7 @@ def test_trace_pick_json(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_trace_prompts_and_prints_summary(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     use_model(monkeypatch, RoutedModel())
-    result = run(repo, "trace", "app/api.py:upload", input="\n")
+    result = run(repo, "trace", "app/api.py:upload", "--no-open", input="\n")
     assert result.exit_code == 0, result.output
     assert "Pick entry point" in result.output
     assert "upload" in result.output
@@ -102,10 +112,12 @@ def test_trace_ctrl_c_marks_partial(repo: Path, monkeypatch: pytest.MonkeyPatch)
 
 def test_open_lists_traces(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     use_model(monkeypatch, RoutedModel())
-    run(repo, "trace", "app/api.py:upload", "--pick", "1")
+    run(repo, "trace", "app/api.py:upload", "--pick", "1", "--no-open")
     trace_id = Service(repo, Settings(), None).list_traces()[0].id
-    result = run(repo, "open")
+    opened = fake_browser(monkeypatch)
+    result = run(repo, "open", input="\n")
     assert result.exit_code == 0
+    assert opened == [f"http://127.0.0.1:1/traces/{trace_id}"]
     assert trace_id in result.output
     assert "complete" in result.output
 
@@ -156,3 +168,44 @@ def test_check_model_sends_one_tiny_request(repo: Path) -> None:
     model.respond = spy  # type: ignore[method-assign]
     assert Service(repo, Settings(), model).check_model() is None
     assert [(r["max_tokens"], r["tools"]) for r in seen] == [(16, [])]
+
+
+def test_trace_opens_browser(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    use_model(monkeypatch, RoutedModel())
+    opened = fake_browser(monkeypatch)
+    result = run(repo, "trace", "app/api.py:upload", "--pick", "1")
+    assert result.exit_code == 0, result.output
+    trace_id = Service(repo, Settings(), None).list_traces()[0].id
+    assert opened == [f"http://127.0.0.1:1/traces/{trace_id}"]
+
+
+@pytest.mark.parametrize("flag", ["--no-open", "--json"])
+def test_trace_without_browser(repo: Path, monkeypatch: pytest.MonkeyPatch, flag: str) -> None:
+    use_model(monkeypatch, RoutedModel())
+    opened = fake_browser(monkeypatch)
+    monkeypatch.setattr(
+        open_cmd, "serve_in_background", lambda service: pytest.fail("server started")
+    )
+    result = run(repo, "trace", "app/api.py:upload", "--pick", "1", flag)
+    assert result.exit_code == 0, result.output
+    assert opened == []
+
+
+def test_open_with_id(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    use_model(monkeypatch, RoutedModel())
+    run(repo, "trace", "app/api.py:upload", "--pick", "1", "--no-open")
+    trace_id = Service(repo, Settings(), None).list_traces()[0].id
+    opened = fake_browser(monkeypatch)
+    assert run(repo, "open", trace_id).exit_code == 0
+    assert opened == [f"http://127.0.0.1:1/traces/{trace_id}"]
+    assert run(repo, "open", "nope").exit_code == 1
+    assert len(opened) == 1
+
+
+def test_serve_dev_uses_fixed_port(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    use_model(monkeypatch, RoutedModel())
+    calls: list[int] = []
+    monkeypatch.setattr(cli_main, "serve_dev", lambda service, port: calls.append(port))
+    assert run(repo, "serve-dev").exit_code == 0
+    assert calls == [8765]
+    assert "serve-dev" not in run(repo, "--help").output

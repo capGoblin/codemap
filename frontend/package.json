@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "gen:api": "npx -y -p typescript@5.9.3 -p openapi-typescript@7.13.0 openapi-typescript \"${OPENAPI_JSON:?set OPENAPI_JSON}\" -o src/api/schema.d.ts"
   },
   "dependencies": {
     "@xyflow/react": "^12.12.0",

@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.live import Live
 
 from codemap.cli import render
+from codemap.cli.open import serve_and_open
 from codemap.service import ModelError, Service
 
 POLL_SECONDS = 0.25
@@ -40,7 +41,9 @@ def _follow(service: Service, trace_id: str, console: Console) -> None:
                 service.wait(trace_id, POLL_SECONDS)
 
 
-def run_trace(service: Service, question: str, lazy: bool, pick: int | None, as_json: bool) -> None:
+def run_trace(
+    service: Service, question: str, lazy: bool, pick: int | None, as_json: bool, open_browser: bool
+) -> None:
     console = render.status_console(to_stderr=as_json)
     try:
         candidates = service.resolve(question)
@@ -65,3 +68,5 @@ def run_trace(service: Service, question: str, lazy: bool, pick: int | None, as_
         typer.echo(graph.model_dump_json(indent=2))
     if graph.trace.status == "failed":
         raise typer.Exit(1)
+    if open_browser and not as_json:
+        serve_and_open(service, trace_id)
