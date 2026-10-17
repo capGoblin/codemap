@@ -19,7 +19,6 @@ type Actions = {
   toggleOpen: (id: string) => void;
   expandAll: () => void;
   collapseAll: () => void;
-  requestFit: () => void;
   takeCameraRequest: () => CameraRequest;
   selectNode: (id: string | null) => void;
   selectTarget: (key: string | null) => void;
@@ -50,7 +49,6 @@ export const useStore = create<State & Actions>((set, get) => ({
       cameraRequest: { kind: "all" },
     })),
   collapseAll: () => set({ openIds: new Set() }),
-  requestFit: () => set({ cameraRequest: { kind: "all" } }),
   takeCameraRequest: () => {
     const r = get().cameraRequest;
     if (r) set({ cameraRequest: null });

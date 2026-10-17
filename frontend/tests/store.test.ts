@@ -37,8 +37,8 @@ describe("store", () => {
     expect(useStore.getState().openIds.size).toBe(0);
   });
 
-  it("takeCameraRequest returns the request once and clears it; requestFit asks for all", () => {
-    useStore.getState().requestFit();
+  it("takeCameraRequest returns the request once and clears it", () => {
+    useStore.getState().expandAll();
     expect(useStore.getState().takeCameraRequest()).toEqual({ kind: "all" });
     expect(useStore.getState().takeCameraRequest()).toBeNull();
   });
