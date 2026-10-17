@@ -284,3 +284,13 @@ def test_split_phases_rejects_bare_function_name_title(tmp_path: Path) -> None:
     assert reason is None and phases[0].title == "Upload and parse (upload)"
     err = str(model.requests[1]["messages"][-1]["content"])
     assert "only the function name" in err and "Rule" in err
+
+
+def test_split_steps_accepts_item_wrapped_lists(tmp_path: Path) -> None:
+    """MiniMax wraps a one-element list as {"item": {...}}. The first answer must be accepted."""
+    draft = step_draft("Accept the file (upload)", [UPLOAD])
+    draft["anchors"] = {"item": UPLOAD.model_dump()}
+    model = ScriptedModel([submit(steps={"item": draft})])
+    ctx = make_ctx(tmp_path, model)
+    steps, reason = split_steps(ctx, node("p0", 0, 0, (UPLOAD,)), [])
+    assert reason is None and len(steps) == 1 and len(model.requests) == 1
