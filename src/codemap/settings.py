@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     max_hops: int = 200
     skeleton_hops: int = 40
     deepen_hops: int = 160
-    deepen_max_depth: int = 3
+    deepen_max_depth: int = 5  # thin wrappers eat levels, so 3 stops short of the real work
     deepen_max_points: int = 80
     build_max_tokens: int = 1_500_000
     build_max_tool_calls: int = 300

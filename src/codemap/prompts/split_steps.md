@@ -5,8 +5,9 @@ You get ONE node (a phase or a step), its anchors, its sub-path points and the a
 # How to split
 
 1. Children follow the functions that do the work: one named function or activity per child, one call in a service method.
-2. A trivial helper folds into its caller's child. It does not get its own child.
-3. Use judgement only where the code is vague. Signals: the data shape changes, a commit or write happens, an async handoff happens, a module boundary is crossed.
+2. If the parent's own anchors only delegate (a thin wrapper that calls one or two functions), build the children from the functions in the sub-path points that do the real work. Use each point's own file, lines and symbol as the child anchor. Do not make a child for the wrapper itself.
+3. A trivial helper folds into its caller's child. It does not get its own child.
+4. Use judgement only where the code is vague. Signals: the data shape changes, a commit or write happens, an async handoff happens, a module boundary is crossed.
 
 # Plumbing
 
