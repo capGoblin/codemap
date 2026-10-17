@@ -131,4 +131,16 @@ describe("canvas", () => {
     expect(fitView).toHaveBeenCalledTimes(1);
     expect(fitView).toHaveBeenCalledWith({ duration: 400 });
   });
+
+  it("shows banner-err when layout rejects", async () => {
+    useStore.setState({ graph: graphWith([]), openIds: new Set(), cameraRequest: null });
+    const { container } = render(
+      <ReactFlowProvider>
+        <FlowCanvas layoutFn={() => Promise.reject(new Error("layout timed out"))} />
+      </ReactFlowProvider>,
+    );
+    await waitFor(() =>
+      expect(container.querySelector(".banner-err")?.textContent).toContain("layout timed out"),
+    );
+  });
 });

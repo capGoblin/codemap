@@ -16,15 +16,11 @@ type Props = { graph?: TraceGraph; layoutFn?: LayoutFn };
 
 export function App({ graph, layoutFn }: Props) {
   const setGraph = useStore((s) => s.setGraph);
-  const id = traceIdFromPath(window.location.pathname);
-  // No API client yet: use the prop, else the dev fixture.
+  // No API client yet (it will use traceIdFromPath): use the prop, else the fixture.
   useEffect(() => {
     setGraph(graph ?? fixtureGraph);
   }, [graph, setGraph]);
 
-  if (id === null && !graph && !import.meta.env.DEV) {
-    return <div className="empty">Open a trace at /traces/:id</div>;
-  }
   return (
     <ReactFlowProvider>
       <div className="app">

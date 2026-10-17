@@ -1,5 +1,4 @@
-import ELK from "elkjs/lib/elk.bundled.js";
-import type { ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api";
+import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api";
 import type { VisibleEdge, VisibleNode } from "./visible";
 
 export type Box = { x: number; y: number; width: number; height: number };
@@ -7,8 +6,6 @@ type V = { nodes: VisibleNode[]; edges: VisibleEdge[] };
 
 const PHASE = { width: 220, height: 110 };
 const STEP = { width: 180, height: 90 };
-
-const elk = new ELK();
 
 // Steps of one parallel group must share a layer. We give every member the
 // union of the group's incoming sources, so layering cannot separate them.
@@ -77,9 +74,11 @@ export function toElk(v: V): ElkNode {
   };
 }
 
-export async function layout(v: V): Promise<Map<string, Box>> {
+// Pure layout. Tests use the bundled ELK (node); the browser passes a worker-backed ELK.
+export async function layout(v: V, elk?: Pick<ELK, "layout">): Promise<Map<string, Box>> {
+  const engine = elk ?? new (await import("elkjs/lib/elk.bundled.js")).default();
   const out = new Map<string, Box>();
-  const res = await elk.layout(toElk(v));
+  const res = await engine.layout(toElk(v));
   const walk = (n: ElkNode) => {
     for (const c of n.children ?? []) {
       out.set(c.id, { x: c.x ?? 0, y: c.y ?? 0, width: c.width ?? 0, height: c.height ?? 0 });

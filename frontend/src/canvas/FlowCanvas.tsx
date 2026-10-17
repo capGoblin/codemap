@@ -6,7 +6,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import "../styles/canvas.css";
 import { buildVisible, type VisibleEdge, type VisibleNode } from "../graph/visible";
-import { layoutInWorker } from "../graph/layout.worker";
+import { layoutInBrowser } from "../graph/layout.browser";
 import type { Box } from "../graph/layout";
 import { nodesTouching } from "../effects/categories";
 import { useStore, type CameraRequest } from "../state/store";
@@ -19,7 +19,7 @@ const nodeTypes = { phase: PhaseNode, step: StepNode };
 type V = { nodes: VisibleNode[]; edges: VisibleEdge[] };
 export type LayoutFn = (v: V) => Promise<Map<string, Box>>;
 
-export function FlowCanvas({ layoutFn = layoutInWorker }: { layoutFn?: LayoutFn }) {
+export function FlowCanvas({ layoutFn = layoutInBrowser }: { layoutFn?: LayoutFn }) {
   const graph = useStore((s) => s.graph);
   const openIds = useStore((s) => s.openIds);
   const selectedTarget = useStore((s) => s.selectedTarget);
@@ -111,7 +111,6 @@ export function FlowCanvas({ layoutFn = layoutInWorker }: { layoutFn?: LayoutFn 
           if (vn.kind === "phase") toggleOpen(vn.id);
           else selectNode(vn.id);
         }}
-        proOptions={{ hideAttribution: true }}
       >
         <Background />
       </ReactFlow>
