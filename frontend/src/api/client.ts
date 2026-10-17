@@ -1,6 +1,8 @@
 import type { NodeDetail, Trace, TraceGraph } from "./types";
 
 const BASE = "/api/v1";
+// Ask for every stored level; the UI shows what the open nodes reveal.
+export const ALL_LEVELS = 99;
 
 export class ApiError extends Error {
   constructor(
@@ -39,3 +41,6 @@ export const expandNode = (id: string, nodeId: string): Promise<TraceGraph> =>
 
 export const getDetail = (id: string, nodeId: string): Promise<NodeDetail> =>
   request(`/traces/${enc(id)}/nodes/${enc(nodeId)}/detail`);
+
+export const regenerateDetail = (id: string, nodeId: string): Promise<NodeDetail> =>
+  request(`/traces/${enc(id)}/nodes/${enc(nodeId)}/detail/regenerate`, { method: "POST" });

@@ -1,7 +1,8 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { FlowCanvas, type LayoutFn } from "../src/canvas/FlowCanvas";
+import { ExpandErrors } from "../src/ExpandErrors";
 import { StatusBanner } from "../src/StatusBanner";
 import { useStore } from "../src/state/store";
 import type { TraceGraph } from "../src/api/types";
@@ -44,9 +45,11 @@ function setup(graph: TraceGraph) {
   useStore.setState({
     graph, openIds: new Set(), selectedNodeId: null, selectedTarget: null,
     hiddenCategories: new Set(), cameraRequest: null, expandErrors: new Map(), expanding: new Set(),
+    leaves: new Set(), panelOpen: true, panelTab: "details",
   });
   return render(
     <ReactFlowProvider>
+      <ExpandErrors />
       <div style={{ width: 800, height: 600 }}>
         <FlowCanvas layoutFn={fakeLayout} />
       </div>
@@ -99,19 +102,36 @@ describe("setGraph", () => {
   });
 });
 
-describe("eager phase without steps", () => {
-  it("shows the reason and retries through expand", async () => {
-    const p = { ...node("p", 0, null, 0), warnings: ["steps unavailable: rate limited"] };
-    setup({ ...fixtureGraph, trace: { ...fixtureGraph.trace, mode: "eager" }, nodes: [p], edges: [] });
+describe("expand any node", () => {
+  it("a step with no children asks the server and shows the new level", async () => {
+    const base = { ...fixtureGraph, nodes: [node("p", 0, null, 0), node("p.s1", 1, "p", 0)], edges: [] };
+    setup(base);
+    useStore.setState({ openIds: new Set(["p"]) });
+    expandNode.mockResolvedValueOnce({ ...base, nodes: [...base.nodes, node("p.s1.a", 2, "p.s1", 0)] });
+    fireEvent.click(await screen.findByTestId("node-p.s1"));
+    expect(expandNode).toHaveBeenCalledWith("fixture", "p.s1");
+    expect(await screen.findByTestId("node-p.s1.a")).toBeTruthy();
+  });
+
+  it("a node the server cannot split becomes a leaf with no caret", async () => {
+    const base = { ...fixtureGraph, nodes: [node("p", 0, null, 0)], edges: [] };
+    setup(base);
+    expandNode.mockResolvedValueOnce(base);
     fireEvent.click(await screen.findByTestId("node-p"));
-    expect(await screen.findByText(/steps unavailable: rate limited/)).toBeTruthy();
-    const merged: TraceGraph = {
-      ...fixtureGraph, trace: { ...fixtureGraph.trace, mode: "eager" },
-      nodes: [p, node("p.s1", 1, "p", 0)], edges: [],
-    };
-    expandNode.mockResolvedValueOnce(merged);
+    await waitFor(() => expect(useStore.getState().leaves.has("p")).toBe(true));
+    await waitFor(() => expect(screen.getByTestId("node-p").textContent).not.toContain("▸"));
+    expect(useStore.getState().openIds.has("p")).toBe(false);
+  });
+
+  it("an eager phase with a failed split shows the error and retries", async () => {
+    const p = { ...node("p", 0, null, 0), warnings: ["steps unavailable: rate limited"] };
+    const base = { ...fixtureGraph, trace: { ...fixtureGraph.trace, mode: "eager" as const }, nodes: [p], edges: [] };
+    setup(base);
+    expandNode.mockRejectedValueOnce(new Error("rate limited"));
+    fireEvent.click(await screen.findByTestId("node-p"));
+    expect(await screen.findByText(/rate limited/)).toBeTruthy();
+    expandNode.mockResolvedValueOnce({ ...base, nodes: [p, node("p.s1", 1, "p", 0)] });
     fireEvent.click(screen.getByText("Retry"));
-    expect(expandNode).toHaveBeenCalledWith("fixture", "p");
     expect(await screen.findByTestId("node-p.s1")).toBeTruthy();
   });
 });

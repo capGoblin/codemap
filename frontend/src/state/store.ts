@@ -2,6 +2,10 @@ import { create } from "zustand";
 import type { TraceGraph } from "../api/types";
 import type { UiCategory } from "../effects/categories";
 
+export type PanelTab = "details" | "data";
+export const PANEL_DEFAULT_WIDTH = 420;
+export const PANEL_MIN_WIDTH = 320;
+
 export type CameraRequest = { kind: "focus"; id: string } | { kind: "all" } | null;
 
 type State = {
@@ -12,7 +16,11 @@ type State = {
   hiddenCategories: Set<UiCategory>;
   cameraRequest: CameraRequest; // one-shot: consumed by the next layout
   expandErrors: Map<string, string>;
-  expanding: Set<string>; // phases with a lazy expand request in flight
+  expanding: Set<string>; // nodes with a lazy expand request in flight
+  leaves: Set<string>; // nodes the server could not split further
+  panelOpen: boolean;
+  panelTab: PanelTab;
+  panelWidth: number;
 };
 
 type Actions = {
@@ -27,6 +35,10 @@ type Actions = {
   toggleCategory: (c: UiCategory) => void;
   setExpandError: (id: string, msg: string | null) => void;
   setExpanding: (id: string, on: boolean) => void;
+  markLeaf: (id: string) => void;
+  showPanel: (tab: PanelTab) => void;
+  togglePanel: () => void;
+  setPanelWidth: (w: number) => void;
 };
 
 export const useStore = create<State & Actions>((set, get) => ({
@@ -38,6 +50,10 @@ export const useStore = create<State & Actions>((set, get) => ({
   cameraRequest: null,
   expandErrors: new Map(),
   expanding: new Set(),
+  leaves: new Set(),
+  panelOpen: true,
+  panelTab: "details",
+  panelWidth: PANEL_DEFAULT_WIDTH,
 
   // Keep open phases across refetches; drop only ids that no longer exist.
   setGraph: (graph) =>
@@ -57,7 +73,9 @@ export const useStore = create<State & Actions>((set, get) => ({
     }),
   expandAll: () =>
     set((s) => ({
-      openIds: new Set((s.graph?.nodes ?? []).filter((n) => n.level === 0).map((n) => n.id)),
+      openIds: new Set(
+        (s.graph?.nodes ?? []).filter((n) => n.parent_id !== null).map((n) => n.parent_id!),
+      ),
       cameraRequest: { kind: "all" },
     })),
   collapseAll: () => set({ openIds: new Set() }),
@@ -66,12 +84,17 @@ export const useStore = create<State & Actions>((set, get) => ({
     if (r) set({ cameraRequest: null });
     return r;
   },
-  selectNode: (selectedNodeId) => set({ selectedNodeId }),
+  selectNode: (selectedNodeId) =>
+    set(selectedNodeId === null ? { selectedNodeId } : { selectedNodeId, panelOpen: true, panelTab: "details" }),
+  // Open every ancestor so the node is visible, then move the camera to it.
   focusNode: (id) =>
     set((s) => {
-      const parent = s.graph?.nodes.find((n) => n.id === id)?.parent_id ?? null;
+      const byId = new Map((s.graph?.nodes ?? []).map((n) => [n.id, n]));
       const openIds = new Set(s.openIds);
-      if (parent !== null) openIds.add(parent);
+      for (let p = byId.get(id)?.parent_id ?? null, i = 0; p !== null && i < 64; i++) {
+        openIds.add(p);
+        p = byId.get(p)?.parent_id ?? null;
+      }
       return { openIds, cameraRequest: { kind: "focus", id } };
     }),
   selectTarget: (selectedTarget) => set({ selectedTarget }),
@@ -95,4 +118,13 @@ export const useStore = create<State & Actions>((set, get) => ({
       else expanding.delete(id);
       return { expanding };
     }),
+  markLeaf: (id) =>
+    set((s) => {
+      const openIds = new Set(s.openIds);
+      openIds.delete(id);
+      return { leaves: new Set(s.leaves).add(id), openIds };
+    }),
+  showPanel: (panelTab) => set({ panelTab, panelOpen: true }),
+  togglePanel: () => set((s) => ({ panelOpen: !s.panelOpen })),
+  setPanelWidth: (w) => set({ panelWidth: Math.max(PANEL_MIN_WIDTH, Math.round(w)) }),
 }));

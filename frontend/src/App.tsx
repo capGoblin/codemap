@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
-import { getDetail, getGraph, getTraces } from "./api/client";
+import { ALL_LEVELS, getDetail, getGraph, getTraces, regenerateDetail } from "./api/client";
 import type { DetailLoader, Trace, TraceGraph } from "./api/types";
 import { FlowCanvas, type LayoutFn } from "./canvas/FlowCanvas";
-import { DetailPanel } from "./panels/DetailPanel";
-import { EffectPanel } from "./panels/EffectPanel";
-import { EffectLane } from "./effects/EffectLane";
+import { RightPanel } from "./panels/RightPanel";
+import { ExpandErrors } from "./ExpandErrors";
 import { Toolbar } from "./Toolbar";
 import { StatusBanner } from "./StatusBanner";
 import { useTraceEvents } from "./api/useTraceEvents";
@@ -63,7 +62,7 @@ export function App({ graph, layoutFn, detailLoader }: Props) {
       if (e.kind === "warning") setWarning(e.message);
       if (e.kind === "finished") setReason(e.message || null);
       if (e.kind === "phase_split" || e.kind === "finished") {
-        getGraph(traceId!, 1).then(setGraph, (err: unknown) =>
+        getGraph(traceId!, ALL_LEVELS).then(setGraph, (err: unknown) =>
           setError(`Could not refresh trace ${traceId}: ${errorText(err)}`),
         );
       }
@@ -76,7 +75,7 @@ export function App({ graph, layoutFn, detailLoader }: Props) {
     if (graph) setGraph(graph);
     else if (traceId !== null) {
       let live = true;
-      getGraph(traceId, 1).then(
+      getGraph(traceId, ALL_LEVELS).then(
         (g) => live && setGraph(g),
         (e: unknown) => live && setError(`Could not load trace ${traceId}: ${errorText(e)}`),
       );
@@ -88,6 +87,7 @@ export function App({ graph, layoutFn, detailLoader }: Props) {
 
   if (showList) return <TraceList />;
   const loader = detailLoader ?? (useApi ? getDetail : undefined);
+  const regenerator = detailLoader ?? (useApi ? regenerateDetail : undefined);
 
   return (
     <ReactFlowProvider>
@@ -95,16 +95,16 @@ export function App({ graph, layoutFn, detailLoader }: Props) {
         {error && <div className="banner-err">{error}</div>}
         {status && <StatusBanner status={status} message={message} warning={warning} reason={reason} />}
         <Toolbar />
+        <ExpandErrors />
         <div className="main">
           <div className="canvas">
             <FlowCanvas {...(layoutFn ? { layoutFn } : {})} />
           </div>
-          <aside className="drawer">
-            <EffectPanel />
-            <DetailPanel {...(loader ? { loader } : {})} />
-          </aside>
+          <RightPanel
+            {...(loader ? { loader } : {})}
+            {...(regenerator ? { regenerator } : {})}
+          />
         </div>
-        <EffectLane />
       </div>
     </ReactFlowProvider>
   );
