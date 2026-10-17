@@ -11,7 +11,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-from codemap.agents.model import ChatModel
+from codemap.agents.model import AnthropicModel, ChatModel, ModelError
 from codemap.domain.events import Event
 from codemap.domain.models import (
     EntryCandidate,
@@ -33,6 +33,8 @@ from codemap.settings import Settings
 from codemap.store.caches import SqliteSymbolCache
 from codemap.store.db import open_db
 from codemap.store.traces import TraceStore
+
+__all__ = ["ModelError", "Service"]
 
 log = logging.getLogger(__name__)
 _EXCLUDE_LINE = ".codemap/"
@@ -77,6 +79,27 @@ class Service:
         """Raises ModelError when the model call fails."""
         ctx = build_context(self.root, self.settings, "resolve", self._model)
         return resolve_entry(ctx, question)
+
+    def check_model(self) -> str | None:
+        """Send one tiny request, not cached. Return an error message, or None when it works."""
+        model = self._model or AnthropicModel(
+            self.settings.anthropic_base_url,
+            self.settings.anthropic_auth_token.get_secret_value(),
+            self.settings.model,
+            self.settings.request_timeout_s,
+        )
+        try:
+            model.respond(
+                system="Reply with ok.",
+                messages=[{"role": "user", "content": "ping"}],
+                tools=[],
+                max_tokens=16,
+            )
+        except Exception as exc:
+            token = self.settings.anthropic_auth_token.get_secret_value()
+            message = str(exc) or type(exc).__name__
+            return message.replace(token, "***") if token else message
+        return None
 
     def start_trace(self, question: str, entry: EntryCandidate, mode: TraceMode) -> str:
         trace_id = uuid.uuid4().hex
@@ -123,6 +146,10 @@ class Service:
                 at=datetime.now(UTC),
             )
         )
+
+    def mark_partial(self, trace_id: str) -> None:
+        """Mark a trace partial, for example after the user stops the CLI."""
+        self._store.set_status(trace_id, "partial")
 
     def wait(self, trace_id: str, timeout: float | None = None) -> TraceStatus:
         thread = self._threads.get(trace_id)
