@@ -72,3 +72,5 @@ export interface FunctionDetail {
   code: string;
   calls: string[];
 }
+
+export type DetailLoader = (traceId: string, nodeId: string) => Promise<FunctionDetail[]>;

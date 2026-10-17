@@ -1,7 +1,10 @@
 import { useEffect } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
-import type { TraceGraph } from "./api/types";
+import type { DetailLoader, TraceGraph } from "./api/types";
 import { FlowCanvas, type LayoutFn } from "./canvas/FlowCanvas";
+import { DetailPanel } from "./panels/DetailPanel";
+import { EffectPanel } from "./panels/EffectPanel";
+import { EffectLane } from "./effects/EffectLane";
 import { Toolbar } from "./Toolbar";
 import { useStore } from "./state/store";
 import { fixtureGraph } from "./dev/fixture";
@@ -12,9 +15,9 @@ export function traceIdFromPath(path: string): string | null {
   return m ? decodeURIComponent(m[1]!) : null;
 }
 
-type Props = { graph?: TraceGraph; layoutFn?: LayoutFn };
+type Props = { graph?: TraceGraph; layoutFn?: LayoutFn; detailLoader?: DetailLoader };
 
-export function App({ graph, layoutFn }: Props) {
+export function App({ graph, layoutFn, detailLoader }: Props) {
   const setGraph = useStore((s) => s.setGraph);
   // No API client yet (it will use traceIdFromPath): use the prop, else the fixture.
   useEffect(() => {
@@ -25,9 +28,16 @@ export function App({ graph, layoutFn }: Props) {
     <ReactFlowProvider>
       <div className="app">
         <Toolbar />
-        <div className="canvas">
-          <FlowCanvas {...(layoutFn ? { layoutFn } : {})} />
+        <div className="main">
+          <div className="canvas">
+            <FlowCanvas {...(layoutFn ? { layoutFn } : {})} />
+          </div>
+          <aside className="drawer">
+            <EffectPanel />
+            <DetailPanel {...(detailLoader ? { loader: detailLoader } : {})} />
+          </aside>
         </div>
+        <EffectLane />
       </div>
     </ReactFlowProvider>
   );
