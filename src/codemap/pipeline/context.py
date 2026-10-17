@@ -87,9 +87,13 @@ def prompt(name: str) -> str:
 
 
 def build_context(
-    root: Path, settings: Settings, trace_id: str, model: ChatModel | None = None
+    root: Path,
+    settings: Settings,
+    trace_id: str,
+    model: ChatModel | None = None,
+    db_path: Path | None = None,
 ) -> TraceContext:
-    conn = open_db(root / ".codemap" / "codemap.db")
+    conn = open_db(db_path or root / ".codemap" / "codemap.db")
     store = TraceStore(conn)
     limits = Limits(
         wall_seconds=settings.max_wall_seconds,

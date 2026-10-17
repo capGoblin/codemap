@@ -1,0 +1,1277 @@
+[
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/orchestration/workflows/document_processing.py",
+   "start_line": 120,
+   "end_line": 167,
+   "symbol": "DocumentProcessingWorkflow._run_stages"
+  },
+  "callee": {
+   "file": "src/example_app/orchestration/activities/document_processing.py",
+   "start_line": 693,
+   "end_line": 700,
+   "symbol": "parse_document_to_reader_artifact"
+  },
+  "kind": "async",
+  "wiring": {
+   "file": "src/example_app/orchestration/workflows/document_processing.py",
+   "start_line": 125,
+   "end_line": 125,
+   "symbol": "parse_document_to_reader_artifact"
+  },
+  "real": true,
+  "category": "string_dispatch",
+  "note": "Temporal activity started by name; @activity.defn(name=...) registers it."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/orchestration/workflows/document_processing.py",
+   "start_line": 120,
+   "end_line": 167,
+   "symbol": "DocumentProcessingWorkflow._run_stages"
+  },
+  "callee": {
+   "file": "src/example_app/orchestration/activities/document_processing.py",
+   "start_line": 885,
+   "end_line": 894,
+   "symbol": "interpret_document_from_reader_artifact"
+  },
+  "kind": "async",
+  "wiring": {
+   "file": "src/example_app/orchestration/workflows/document_processing.py",
+   "start_line": 139,
+   "end_line": 139,
+   "symbol": "interpret_document_from_reader_artifact"
+  },
+  "real": true,
+  "category": "string_dispatch",
+  "note": "Temporal activity started by name."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/orchestration/workflows/document_processing.py",
+   "start_line": 120,
+   "end_line": 167,
+   "symbol": "DocumentProcessingWorkflow._run_stages"
+  },
+  "callee": {
+   "file": "src/example_app/orchestration/activities/document_processing.py",
+   "start_line": 966,
+   "end_line": 1013,
+   "symbol": "load_document_interpretation_artifact"
+  },
+  "kind": "async",
+  "wiring": {
+   "file": "src/example_app/orchestration/workflows/document_processing.py",
+   "start_line": 151,
+   "end_line": 151,
+   "symbol": "load_document_interpretation_artifact"
+  },
+  "real": true,
+  "category": "string_dispatch",
+  "note": "Temporal activity started by name."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/orchestration/workflows/document_processing.py",
+   "start_line": 93,
+   "end_line": 118,
+   "symbol": "DocumentProcessingWorkflow.run"
+  },
+  "callee": {
+   "file": "src/example_app/orchestration/activities/document_processing.py",
+   "start_line": 213,
+   "end_line": 219,
+   "symbol": "record_document_processing_failure"
+  },
+  "kind": "error",
+  "wiring": {
+   "file": "src/example_app/orchestration/workflows/document_processing.py",
+   "start_line": 106,
+   "end_line": 106,
+   "symbol": "record_document_processing_failure"
+  },
+  "real": true,
+  "category": "string_dispatch",
+  "note": "Failure-recording activity started by name in the except branch."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/orchestration/workflows/company_research.py",
+   "start_line": 32,
+   "end_line": 53,
+   "symbol": "ResearchRunWorkflow.run"
+  },
+  "callee": {
+   "file": "src/example_app/orchestration/activities/company_research.py",
+   "start_line": 48,
+   "end_line": 53,
+   "symbol": "run_company_research"
+  },
+  "kind": "async",
+  "wiring": {
+   "file": "src/example_app/orchestration/workflows/company_research.py",
+   "start_line": 36,
+   "end_line": 36,
+   "symbol": "run_company_research"
+  },
+  "real": true,
+  "category": "string_dispatch",
+  "note": "Research activity started by name."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/orchestration/workflows/company_research.py",
+   "start_line": 32,
+   "end_line": 53,
+   "symbol": "ResearchRunWorkflow.run"
+  },
+  "callee": {
+   "file": "src/example_app/orchestration/activities/company_research.py",
+   "start_line": 125,
+   "end_line": 137,
+   "symbol": "record_research_failure"
+  },
+  "kind": "error",
+  "wiring": {
+   "file": "src/example_app/orchestration/workflows/company_research.py",
+   "start_line": 46,
+   "end_line": 46,
+   "symbol": "record_research_failure"
+  },
+  "real": true,
+  "category": "string_dispatch",
+  "note": "Failure activity started by name after ActivityError."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/orchestration/outbox_relay.py",
+   "start_line": 148,
+   "end_line": 168,
+   "symbol": "dispatch_pending_outbox_events"
+  },
+  "callee": {
+   "file": "src/example_app/orchestration/outbox_relay.py",
+   "start_line": 80,
+   "end_line": 98,
+   "symbol": "TemporalDocumentWorkflowStarter.start_document_processing_workflow"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "src/example_app/config/composition.py",
+   "start_line": 42,
+   "end_line": 42,
+   "symbol": "TemporalDocumentWorkflowStarter"
+  },
+  "real": true,
+  "category": "di",
+  "note": "starter is a parameter; composition root injects the Temporal starter."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/orchestration/outbox_relay.py",
+   "start_line": 100,
+   "end_line": 114,
+   "symbol": "TemporalDocumentWorkflowStarter._start_document_processing_workflow"
+  },
+  "callee": {
+   "file": "src/example_app/orchestration/workflows/document_processing.py",
+   "start_line": 93,
+   "end_line": 118,
+   "symbol": "DocumentProcessingWorkflow.run"
+  },
+  "kind": "async",
+  "wiring": {
+   "file": "src/example_app/orchestration/outbox_relay.py",
+   "start_line": 109,
+   "end_line": 109,
+   "symbol": "DocumentProcessingWorkflow"
+  },
+  "real": true,
+  "category": "async_handoff",
+  "note": "start_workflow hands the request to the Temporal worker, which runs the workflow run method."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/api/malware_scan_views.py",
+   "start_line": 97,
+   "end_line": 166,
+   "symbol": "MalwareScanResultWebhookView.post"
+  },
+  "callee": {
+   "file": "src/example_app/config/composition.py",
+   "start_line": 47,
+   "end_line": 50,
+   "symbol": "build_document_workflow_dispatcher"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "src/example_app/config/composition.py",
+   "start_line": 59,
+   "end_line": 59,
+   "symbol": "document_workflow_dispatcher"
+  },
+  "real": true,
+  "category": "di",
+  "note": "View attribute document_workflow_dispatcher is injected via as_view kwargs."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/api/file_upload_views.py",
+   "start_line": 44,
+   "end_line": 140,
+   "symbol": "FileUploadCollectionView.post"
+  },
+  "callee": {
+   "file": "src/example_app/config/composition.py",
+   "start_line": 25,
+   "end_line": 28,
+   "symbol": "get_document_storage"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "src/example_app/config/composition.py",
+   "start_line": 58,
+   "end_line": 58,
+   "symbol": "document_storage_factory"
+  },
+  "real": true,
+  "category": "di",
+  "note": "document_storage_factory injected via as_view kwargs."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/api/auth_views.py",
+   "start_line": 77,
+   "end_line": 120,
+   "symbol": "GoogleLoginView.post"
+  },
+  "callee": {
+   "file": "src/example_app/config/composition.py",
+   "start_line": 31,
+   "end_line": 34,
+   "symbol": "authenticate_google_credential"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "src/example_app/config/composition.py",
+   "start_line": 57,
+   "end_line": 57,
+   "symbol": "google_login_authenticator"
+  },
+  "real": true,
+  "category": "di",
+  "note": "google_login_authenticator injected via as_view kwargs."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/orchestration/workflows/document_processing.py",
+   "start_line": 120,
+   "end_line": 167,
+   "symbol": "DocumentProcessingWorkflow._run_stages"
+  },
+  "callee": {
+   "file": "src/example_app/orchestration/activities/document_processing.py",
+   "start_line": 743,
+   "end_line": 798,
+   "symbol": "parse_document_to_reader_artifact_with_progress"
+  },
+  "kind": "async",
+  "wiring": {
+   "file": "src/example_app/orchestration/workflows/document_processing.py",
+   "start_line": 125,
+   "end_line": 125,
+   "symbol": "parse_document_to_reader_artifact"
+  },
+  "real": false,
+  "category": "string_dispatch",
+  "note": "Sibling helper with a similar name; the activity runs the other function."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/orchestration/workflows/document_processing.py",
+   "start_line": 93,
+   "end_line": 118,
+   "symbol": "DocumentProcessingWorkflow.run"
+  },
+  "callee": {
+   "file": "src/example_app/orchestration/activities/company_research.py",
+   "start_line": 125,
+   "end_line": 137,
+   "symbol": "record_research_failure"
+  },
+  "kind": "error",
+  "wiring": {
+   "file": "src/example_app/orchestration/workflows/document_processing.py",
+   "start_line": 106,
+   "end_line": 106,
+   "symbol": "record_document_processing_failure"
+  },
+  "real": false,
+  "category": "string_dispatch",
+  "note": "Failure activity of the other workflow."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/orchestration/workflows/company_research.py",
+   "start_line": 32,
+   "end_line": 53,
+   "symbol": "ResearchRunWorkflow.run"
+  },
+  "callee": {
+   "file": "src/example_app/orchestration/activities/company_research.py",
+   "start_line": 56,
+   "end_line": 122,
+   "symbol": "carry_out"
+  },
+  "kind": "async",
+  "wiring": {
+   "file": "src/example_app/orchestration/workflows/company_research.py",
+   "start_line": 36,
+   "end_line": 36,
+   "symbol": "run_company_research"
+  },
+  "real": false,
+  "category": "string_dispatch",
+  "note": "Inner helper of the real activity, not the registered activity."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/api/malware_scan_views.py",
+   "start_line": 97,
+   "end_line": 166,
+   "symbol": "MalwareScanResultWebhookView.post"
+  },
+  "callee": {
+   "file": "src/example_app/api/malware_scan_views.py",
+   "start_line": 35,
+   "end_line": 36,
+   "symbol": "unconfigured_document_workflow_dispatcher"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "src/example_app/config/composition.py",
+   "start_line": 59,
+   "end_line": 59,
+   "symbol": "document_workflow_dispatcher"
+  },
+  "real": false,
+  "category": "di",
+  "note": "Default that composition overrides."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/api/file_upload_views.py",
+   "start_line": 44,
+   "end_line": 140,
+   "symbol": "FileUploadCollectionView.post"
+  },
+  "callee": {
+   "file": "src/example_app/api/file_upload_views.py",
+   "start_line": 37,
+   "end_line": 38,
+   "symbol": "unconfigured_document_storage_factory"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "src/example_app/config/composition.py",
+   "start_line": 58,
+   "end_line": 58,
+   "symbol": "document_storage_factory"
+  },
+  "real": false,
+  "category": "di",
+  "note": "Default that composition overrides."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/orchestration/outbox_relay.py",
+   "start_line": 148,
+   "end_line": 168,
+   "symbol": "dispatch_pending_outbox_events"
+  },
+  "callee": {
+   "file": "src/example_app/orchestration/outbox_relay.py",
+   "start_line": 127,
+   "end_line": 145,
+   "symbol": "TemporalResearchWorkflowStarter.start_research_workflow"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "src/example_app/config/composition.py",
+   "start_line": 42,
+   "end_line": 42,
+   "symbol": "TemporalDocumentWorkflowStarter"
+  },
+  "real": false,
+  "category": "di",
+  "note": "Starter for the research workflow, not the document workflow."
+ },
+ {
+  "repo": "example",
+  "caller": {
+   "file": "src/example_app/api/auth_views.py",
+   "start_line": 77,
+   "end_line": 120,
+   "symbol": "GoogleLoginView.post"
+  },
+  "callee": {
+   "file": "src/example_app/api/auth_views.py",
+   "start_line": 37,
+   "end_line": 38,
+   "symbol": "unconfigured_google_login_authenticator"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "src/example_app/config/composition.py",
+   "start_line": 57,
+   "end_line": 57,
+   "symbol": "google_login_authenticator"
+  },
+  "real": false,
+  "category": "di",
+  "note": "Default that composition overrides."
+ },
+ {
+  "repo": "chat-agent",
+  "caller": {
+   "file": "chat-agent/tools/registry.py",
+   "start_line": 47,
+   "end_line": 58,
+   "symbol": "ToolRegistry.execute"
+  },
+  "callee": {
+   "file": "chat-agent/tools/notes.py",
+   "start_line": 16,
+   "end_line": 22,
+   "symbol": "save_note"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "chat-agent/tools/notes.py",
+   "start_line": 39,
+   "end_line": 39,
+   "symbol": "save_note"
+  },
+  "real": true,
+  "category": "registry",
+  "note": "execute looks the tool up by name in the dict and calls tool.fn."
+ },
+ {
+  "repo": "chat-agent",
+  "caller": {
+   "file": "chat-agent/tools/registry.py",
+   "start_line": 47,
+   "end_line": 58,
+   "symbol": "ToolRegistry.execute"
+  },
+  "callee": {
+   "file": "chat-agent/tools/calendar.py",
+   "start_line": 211,
+   "end_line": 267,
+   "symbol": "create_event"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "chat-agent/tools/calendar.py",
+   "start_line": 286,
+   "end_line": 286,
+   "symbol": "create_event"
+  },
+  "real": true,
+  "category": "registry",
+  "note": "Registered as fn= of the create_event tool."
+ },
+ {
+  "repo": "chat-agent",
+  "caller": {
+   "file": "chat-agent/tools/registry.py",
+   "start_line": 47,
+   "end_line": 58,
+   "symbol": "ToolRegistry.execute"
+  },
+  "callee": {
+   "file": "chat-agent/tools/calendar.py",
+   "start_line": 293,
+   "end_line": 314,
+   "symbol": "list_events"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "chat-agent/tools/calendar.py",
+   "start_line": 334,
+   "end_line": 334,
+   "symbol": "list_events"
+  },
+  "real": true,
+  "category": "registry",
+  "note": "Registered as fn= of the list tool."
+ },
+ {
+  "repo": "chat-agent",
+  "caller": {
+   "file": "chat-agent/tools/registry.py",
+   "start_line": 47,
+   "end_line": 58,
+   "symbol": "ToolRegistry.execute"
+  },
+  "callee": {
+   "file": "chat-agent/tools/search.py",
+   "start_line": 62,
+   "end_line": 81,
+   "symbol": "search_web"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "chat-agent/tools/search.py",
+   "start_line": 98,
+   "end_line": 98,
+   "symbol": "search_web"
+  },
+  "real": true,
+  "category": "registry",
+  "note": "Registered as fn= of the search tool."
+ },
+ {
+  "repo": "chat-agent",
+  "caller": {
+   "file": "chat-agent/tools/registry.py",
+   "start_line": 47,
+   "end_line": 58,
+   "symbol": "ToolRegistry.execute"
+  },
+  "callee": {
+   "file": "chat-agent/tools/messages.py",
+   "start_line": 17,
+   "end_line": 22,
+   "symbol": "send_message"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "chat-agent/tools/messages.py",
+   "start_line": 38,
+   "end_line": 38,
+   "symbol": "send_message"
+  },
+  "real": true,
+  "category": "registry",
+  "note": "Registered as fn= of the message tool."
+ },
+ {
+  "repo": "chat-agent",
+  "caller": {
+   "file": "chat-agent/loop/agent.py",
+   "start_line": 41,
+   "end_line": 114,
+   "symbol": "run_loop"
+  },
+  "callee": {
+   "file": "chat-agent/tools/registry.py",
+   "start_line": 47,
+   "end_line": 58,
+   "symbol": "ToolRegistry.execute"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "chat-agent/app.py",
+   "start_line": 31,
+   "end_line": 31,
+   "symbol": "build_registry"
+  },
+  "real": true,
+  "category": "di",
+  "note": "run_loop gets the registry as a parameter; chat-agent builds it with build_registry."
+ },
+ {
+  "repo": "chat-agent",
+  "caller": {
+   "file": "chat-agent/gateway/telegram.py",
+   "start_line": 42,
+   "end_line": 67,
+   "symbol": "_build_app"
+  },
+  "callee": {
+   "file": "chat-agent/gateway/telegram.py",
+   "start_line": 56,
+   "end_line": 63,
+   "symbol": "_build_app.handle"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "chat-agent/gateway/telegram.py",
+   "start_line": 66,
+   "end_line": 66,
+   "symbol": "add_handler"
+  },
+  "real": true,
+  "category": "callback",
+  "note": "python-telegram-bot calls the handler registered with add_handler."
+ },
+ {
+  "repo": "chat-agent",
+  "caller": {
+   "file": "chat-agent/gateway/discord.py",
+   "start_line": 127,
+   "end_line": 168,
+   "symbol": "_build_client"
+  },
+  "callee": {
+   "file": "chat-agent/gateway/discord.py",
+   "start_line": 142,
+   "end_line": 166,
+   "symbol": "_build_client.on_message"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "chat-agent/gateway/discord.py",
+   "start_line": 142,
+   "end_line": 142,
+   "symbol": "event"
+  },
+  "real": true,
+  "category": "decorator",
+  "note": "@client.event registers on_message as the Discord event handler."
+ },
+ {
+  "repo": "chat-agent",
+  "caller": {
+   "file": "chat-agent/tools/registry.py",
+   "start_line": 47,
+   "end_line": 58,
+   "symbol": "ToolRegistry.execute"
+  },
+  "callee": {
+   "file": "chat-agent/tools/calendar.py",
+   "start_line": 69,
+   "end_line": 121,
+   "symbol": "sync_to_apple_calendar"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "chat-agent/tools/calendar.py",
+   "start_line": 286,
+   "end_line": 286,
+   "symbol": "create_event"
+  },
+  "real": false,
+  "category": "registry",
+  "note": "Helper called by create_event, not the registered fn."
+ },
+ {
+  "repo": "chat-agent",
+  "caller": {
+   "file": "chat-agent/tools/registry.py",
+   "start_line": 47,
+   "end_line": 58,
+   "symbol": "ToolRegistry.execute"
+  },
+  "callee": {
+   "file": "chat-agent/tools/calendar.py",
+   "start_line": 293,
+   "end_line": 314,
+   "symbol": "list_events"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "chat-agent/tools/calendar.py",
+   "start_line": 286,
+   "end_line": 286,
+   "symbol": "create_event"
+  },
+  "real": false,
+  "category": "registry",
+  "note": "Sibling tool under a different registration."
+ },
+ {
+  "repo": "chat-agent",
+  "caller": {
+   "file": "chat-agent/tools/registry.py",
+   "start_line": 47,
+   "end_line": 58,
+   "symbol": "ToolRegistry.execute"
+  },
+  "callee": {
+   "file": "chat-agent/tools/notes.py",
+   "start_line": 16,
+   "end_line": 22,
+   "symbol": "save_note"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "chat-agent/tools/messages.py",
+   "start_line": 38,
+   "end_line": 38,
+   "symbol": "send_message"
+  },
+  "real": false,
+  "category": "registry",
+  "note": "Wiring registers send_message; save_note is a different tool."
+ },
+ {
+  "repo": "chat-agent",
+  "caller": {
+   "file": "chat-agent/tools/registry.py",
+   "start_line": 47,
+   "end_line": 58,
+   "symbol": "ToolRegistry.execute"
+  },
+  "callee": {
+   "file": "chat-agent/tools/search.py",
+   "start_line": 44,
+   "end_line": 58,
+   "symbol": "_duckduckgo"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "chat-agent/tools/search.py",
+   "start_line": 98,
+   "end_line": 98,
+   "symbol": "search_web"
+  },
+  "real": false,
+  "category": "registry",
+  "note": "Fallback backend inside search_web, not the registered fn."
+ },
+ {
+  "repo": "chat-agent",
+  "caller": {
+   "file": "chat-agent/gateway/telegram.py",
+   "start_line": 42,
+   "end_line": 67,
+   "symbol": "_build_app"
+  },
+  "callee": {
+   "file": "chat-agent/gateway/telegram.py",
+   "start_line": 114,
+   "end_line": 123,
+   "symbol": "start_in_background.on_poll_error"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "chat-agent/gateway/telegram.py",
+   "start_line": 66,
+   "end_line": 66,
+   "symbol": "add_handler"
+  },
+  "real": false,
+  "category": "callback",
+  "note": "Poll error callback is not the message handler."
+ },
+ {
+  "repo": "pi",
+  "caller": {
+   "file": "packages/agent/src/agent-loop.ts",
+   "start_line": 666,
+   "end_line": 707,
+   "symbol": "executePreparedToolCall"
+  },
+  "callee": {
+   "file": "packages/coding-agent/src/core/tools/bash.ts",
+   "start_line": 333,
+   "end_line": 458,
+   "symbol": "execute"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "packages/coding-agent/src/core/tools/index.ts",
+   "start_line": 101,
+   "end_line": 101,
+   "symbol": "createBashToolDefinition"
+  },
+  "real": true,
+  "category": "registry",
+  "note": "tool.execute resolves to the bash definition's execute method."
+ },
+ {
+  "repo": "pi",
+  "caller": {
+   "file": "packages/agent/src/agent-loop.ts",
+   "start_line": 666,
+   "end_line": 707,
+   "symbol": "executePreparedToolCall"
+  },
+  "callee": {
+   "file": "packages/coding-agent/src/core/tools/read.ts",
+   "start_line": 216,
+   "end_line": 328,
+   "symbol": "execute"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "packages/coding-agent/src/core/tools/index.ts",
+   "start_line": 99,
+   "end_line": 99,
+   "symbol": "createReadToolDefinition"
+  },
+  "real": true,
+  "category": "registry",
+  "note": "tool.execute resolves to the read definition's execute method."
+ },
+ {
+  "repo": "pi",
+  "caller": {
+   "file": "packages/ai/src/compat.ts",
+   "start_line": 250,
+   "end_line": 264,
+   "symbol": "stream"
+  },
+  "callee": {
+   "file": "packages/ai/src/api/anthropic-messages.ts",
+   "start_line": 487,
+   "end_line": 773,
+   "symbol": "stream"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "packages/ai/src/compat.ts",
+   "start_line": 179,
+   "end_line": 179,
+   "symbol": "anthropicMessagesApi"
+  },
+  "real": true,
+  "category": "registry",
+  "note": "Provider is looked up by model.api in apiProviderRegistry."
+ },
+ {
+  "repo": "pi",
+  "caller": {
+   "file": "packages/ai/src/compat.ts",
+   "start_line": 250,
+   "end_line": 264,
+   "symbol": "stream"
+  },
+  "callee": {
+   "file": "packages/ai/src/api/openai-completions.ts",
+   "start_line": 196,
+   "end_line": 607,
+   "symbol": "stream"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "packages/ai/src/compat.ts",
+   "start_line": 180,
+   "end_line": 180,
+   "symbol": "openAICompletionsApi"
+  },
+  "real": true,
+  "category": "registry",
+  "note": "Provider is looked up by model.api in apiProviderRegistry."
+ },
+ {
+  "repo": "pi",
+  "caller": {
+   "file": "packages/agent/src/agent-loop.ts",
+   "start_line": 666,
+   "end_line": 707,
+   "symbol": "executePreparedToolCall"
+  },
+  "callee": {
+   "file": "packages/coding-agent/src/core/tools/edit.ts",
+   "start_line": 308,
+   "end_line": 362,
+   "symbol": "execute"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "packages/coding-agent/src/core/tools/index.ts",
+   "start_line": 101,
+   "end_line": 101,
+   "symbol": "createBashToolDefinition"
+  },
+  "real": false,
+  "category": "registry",
+  "note": "Edit tool, but wiring registers bash."
+ },
+ {
+  "repo": "pi",
+  "caller": {
+   "file": "packages/ai/src/compat.ts",
+   "start_line": 250,
+   "end_line": 264,
+   "symbol": "stream"
+  },
+  "callee": {
+   "file": "packages/ai/src/api/anthropic-messages.ts",
+   "start_line": 800,
+   "end_line": 840,
+   "symbol": "streamSimple"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "packages/ai/src/compat.ts",
+   "start_line": 179,
+   "end_line": 179,
+   "symbol": "anthropicMessagesApi"
+  },
+  "real": false,
+  "category": "registry",
+  "note": "streamSimple is the other entry point; stream() calls provider.stream."
+ },
+ {
+  "repo": "pi",
+  "caller": {
+   "file": "packages/ai/src/compat.ts",
+   "start_line": 250,
+   "end_line": 264,
+   "symbol": "stream"
+  },
+  "callee": {
+   "file": "packages/ai/src/api/anthropic-messages.ts",
+   "start_line": 487,
+   "end_line": 773,
+   "symbol": "stream"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "packages/ai/src/compat.ts",
+   "start_line": 180,
+   "end_line": 180,
+   "symbol": "openAICompletionsApi"
+  },
+  "real": false,
+  "category": "registry",
+  "note": "Anthropic stream under the openai-completions registration."
+ },
+ {
+  "repo": "agent-cli",
+  "caller": {
+   "file": "src/tools/manager.ts",
+   "start_line": 2623,
+   "end_line": 3092,
+   "symbol": "executeToolInner"
+  },
+  "callee": {
+   "file": "src/tools/impl/bash.ts",
+   "start_line": 196,
+   "end_line": 434,
+   "symbol": "bash"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "src/tools/tool-definitions.ts",
+   "start_line": 179,
+   "end_line": 179,
+   "symbol": "bash"
+  },
+  "real": true,
+  "category": "registry",
+  "note": "tool.fn(args) calls the impl registered in TOOL_DEFINITIONS."
+ },
+ {
+  "repo": "agent-cli",
+  "caller": {
+   "file": "src/tools/manager.ts",
+   "start_line": 2623,
+   "end_line": 3092,
+   "symbol": "executeToolInner"
+  },
+  "callee": {
+   "file": "src/tools/impl/edit.ts",
+   "start_line": 120,
+   "end_line": 229,
+   "symbol": "edit"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "src/tools/tool-definitions.ts",
+   "start_line": 194,
+   "end_line": 194,
+   "symbol": "edit"
+  },
+  "real": true,
+  "category": "registry",
+  "note": "Same dispatch for Edit."
+ },
+ {
+  "repo": "agent-cli",
+  "caller": {
+   "file": "src/tools/manager.ts",
+   "start_line": 2623,
+   "end_line": 3092,
+   "symbol": "executeToolInner"
+  },
+  "callee": {
+   "file": "src/tools/impl/read.ts",
+   "start_line": 229,
+   "end_line": 286,
+   "symbol": "read"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "src/tools/tool-definitions.ts",
+   "start_line": 249,
+   "end_line": 249,
+   "symbol": "read"
+  },
+  "real": true,
+  "category": "registry",
+  "note": "Same dispatch for Read."
+ },
+ {
+  "repo": "agent-cli",
+  "caller": {
+   "file": "src/tools/manager.ts",
+   "start_line": 2623,
+   "end_line": 3092,
+   "symbol": "executeToolInner"
+  },
+  "callee": {
+   "file": "src/tools/impl/glob.ts",
+   "start_line": 47,
+   "end_line": 113,
+   "symbol": "glob"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "src/tools/tool-definitions.ts",
+   "start_line": 199,
+   "end_line": 199,
+   "symbol": "glob"
+  },
+  "real": true,
+  "category": "registry",
+  "note": "Same dispatch for Glob."
+ },
+ {
+  "repo": "agent-cli",
+  "caller": {
+   "file": "src/tools/manager.ts",
+   "start_line": 2623,
+   "end_line": 3092,
+   "symbol": "executeToolInner"
+  },
+  "callee": {
+   "file": "src/tools/impl/bash-output.ts",
+   "start_line": 411,
+   "end_line": 424,
+   "symbol": "bash_output"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "src/tools/tool-definitions.ts",
+   "start_line": 179,
+   "end_line": 179,
+   "symbol": "bash"
+  },
+  "real": false,
+  "category": "registry",
+  "note": "Sibling BashOutput impl; wiring registers bash."
+ },
+ {
+  "repo": "agent-cli",
+  "caller": {
+   "file": "src/tools/manager.ts",
+   "start_line": 2623,
+   "end_line": 3092,
+   "symbol": "executeToolInner"
+  },
+  "callee": {
+   "file": "src/tools/impl/multi-edit.ts",
+   "start_line": 26,
+   "end_line": 112,
+   "symbol": "multi_edit"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "src/tools/tool-definitions.ts",
+   "start_line": 194,
+   "end_line": 194,
+   "symbol": "edit"
+  },
+  "real": false,
+  "category": "registry",
+  "note": "MultiEdit impl; wiring registers edit."
+ },
+ {
+  "repo": "agent-cli",
+  "caller": {
+   "file": "src/tools/manager.ts",
+   "start_line": 2623,
+   "end_line": 3092,
+   "symbol": "executeToolInner"
+  },
+  "callee": {
+   "file": "src/tools/impl/read-file-codex.ts",
+   "start_line": 39,
+   "end_line": 74,
+   "symbol": "read_file"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "src/tools/tool-definitions.ts",
+   "start_line": 249,
+   "end_line": 249,
+   "symbol": "read"
+  },
+  "real": false,
+  "category": "registry",
+  "note": "Codex-toolset reader; wiring registers read."
+ },
+ {
+  "repo": "agent-cli",
+  "caller": {
+   "file": "src/tools/manager.ts",
+   "start_line": 2623,
+   "end_line": 3092,
+   "symbol": "executeToolInner"
+  },
+  "callee": {
+   "file": "src/tools/impl/glob-gemini.ts",
+   "start_line": 16,
+   "end_line": 30,
+   "symbol": "glob_gemini"
+  },
+  "kind": "call",
+  "wiring": {
+   "file": "src/tools/tool-definitions.ts",
+   "start_line": 199,
+   "end_line": 199,
+   "symbol": "glob"
+  },
+  "real": false,
+  "category": "registry",
+  "note": "Gemini-toolset glob; wiring registers glob."
+ },
+ {
+  "repo": "qm",
+  "caller": {
+   "file": "src/cron/job-queue.ts",
+   "start_line": 39,
+   "end_line": 70,
+   "symbol": "start"
+  },
+  "callee": {
+   "file": "src/cron/scheduler.ts",
+   "start_line": 212,
+   "end_line": 235,
+   "symbol": "fireJob"
+  },
+  "kind": "async",
+  "wiring": {
+   "file": "src/cron/scheduler.ts",
+   "start_line": 282,
+   "end_line": 282,
+   "symbol": "fireJob"
+  },
+  "real": true,
+  "category": "queue",
+  "note": "pg-boss worker on the cron-fire queue calls handlers.onFire, which is fireJob."
+ },
+ {
+  "repo": "qm",
+  "caller": {
+   "file": "src/cron/job-queue.ts",
+   "start_line": 39,
+   "end_line": 70,
+   "symbol": "start"
+  },
+  "callee": {
+   "file": "src/cron/scheduler.ts",
+   "start_line": 237,
+   "end_line": 248,
+   "symbol": "reconcile"
+  },
+  "kind": "async",
+  "wiring": {
+   "file": "src/cron/scheduler.ts",
+   "start_line": 282,
+   "end_line": 282,
+   "symbol": "reconcile"
+  },
+  "real": true,
+  "category": "queue",
+  "note": "pg-boss worker on the cron-tick queue calls handlers.onTick, which is reconcile."
+ },
+ {
+  "repo": "qm",
+  "caller": {
+   "file": "src/cron/scheduler.ts",
+   "start_line": 237,
+   "end_line": 248,
+   "symbol": "reconcile"
+  },
+  "callee": {
+   "file": "src/cron/job-queue.ts",
+   "start_line": 71,
+   "end_line": 78,
+   "symbol": "enqueueFire"
+  },
+  "kind": "async",
+  "wiring": {
+   "file": "src/wiring.ts",
+   "start_line": 1209,
+   "end_line": 1209,
+   "symbol": "jobQueue"
+  },
+  "real": true,
+  "category": "di",
+  "note": "deps.jobQueue is injected by wiring as the pg-boss queue."
+ },
+ {
+  "repo": "qm",
+  "caller": {
+   "file": "src/cron/job-queue.ts",
+   "start_line": 39,
+   "end_line": 70,
+   "symbol": "start"
+  },
+  "callee": {
+   "file": "src/cron/scheduler.ts",
+   "start_line": 115,
+   "end_line": 173,
+   "symbol": "fire"
+  },
+  "kind": "async",
+  "wiring": {
+   "file": "src/cron/scheduler.ts",
+   "start_line": 282,
+   "end_line": 282,
+   "symbol": "fireJob"
+  },
+  "real": false,
+  "category": "queue",
+  "note": "Lower-level helper that fireJob calls; the queue handler is fireJob."
+ },
+ {
+  "repo": "qm",
+  "caller": {
+   "file": "src/cron/scheduler.ts",
+   "start_line": 237,
+   "end_line": 248,
+   "symbol": "reconcile"
+  },
+  "callee": {
+   "file": "src/cron/job-queue.ts",
+   "start_line": 79,
+   "end_line": 81,
+   "symbol": "healthy"
+  },
+  "kind": "async",
+  "wiring": {
+   "file": "src/wiring.ts",
+   "start_line": 1209,
+   "end_line": 1209,
+   "symbol": "jobQueue"
+  },
+  "real": false,
+  "category": "di",
+  "note": "Queue method for health, not the enqueue method."
+ }
+]
