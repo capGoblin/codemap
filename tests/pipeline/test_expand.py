@@ -58,3 +58,57 @@ def test_expand_static_follows_calls_without_the_model(tmp_path: Path) -> None:
 def test_expand_static_respects_point_cap(tmp_path: Path) -> None:
     ctx = make_ctx(tmp_path)
     assert len(expand_static(ctx, phase(UPLOAD), [], max_points=2).hops) == 2
+
+
+def write_repo(tmp_path: Path, files: dict[str, str]):  # noqa: ANN201
+    repo = tmp_path / "r"
+    for name, text in files.items():
+        (repo / name).parent.mkdir(parents=True, exist_ok=True)
+        (repo / name).write_text(text)
+    return build_context(repo, Settings(), "t1", model=ScriptedModel([]))
+
+
+def test_calls_in_typescript_and_go(tmp_path: Path) -> None:
+    ctx = write_repo(
+        tmp_path,
+        {
+            "a.ts": (
+                "function f(x) {\n  console.log(x);\n  const y = svc.load(x);\n  return g(y);\n}\n"
+            ),
+            "b.go": "package b\nfunc F() {\n\tn := len(xs)\n\tstore.Save(n)\n\tdo(n)\n}\n",
+        },
+    )
+    ts = calls_in(ctx.tools, Anchor(file="a.ts", start_line=1, end_line=5, symbol="f"))
+    assert [(s.name, s.line) for s in ts] == [("load", 3), ("g", 4)]
+    go = calls_in(ctx.tools, Anchor(file="b.go", start_line=2, end_line=6, symbol="F"))
+    assert [(s.name, s.line) for s in go] == [("Save", 4), ("do", 5)]
+
+
+def test_expand_static_skips_ignored_and_unknown(tmp_path: Path) -> None:
+    ctx = make_ctx(tmp_path)
+    # node_modules/x.js and build/out.py are ignored; ocr is never called from upload
+    result = expand_static(ctx, phase(UPLOAD), [], max_points=80)
+    assert not [h for h in result.hops if h.callee.file.startswith(("node_modules", "build"))]
+
+
+def test_disambiguation_same_file_then_import(tmp_path: Path) -> None:
+    ctx = write_repo(
+        tmp_path,
+        {
+            "app/main.py": (
+                "from app import good\n\n\ndef run():\n    helper()\n    other()\n\n\n"
+                "def helper():\n    return 1\n"
+            ),
+            "app/good.py": "def other():\n    return 1\n",
+            "lib/bad.py": "def other():\n    return 2\n\n\ndef helper():\n    return 3\n",
+        },
+    )
+    main = Anchor(file="app/main.py", start_line=4, end_line=6, symbol="run")
+    from codemap.pipeline.expand import pick_definition
+
+    helper = ctx.tools.index.find_definition("helper")  # type: ignore[union-attr]
+    other = ctx.tools.index.find_definition("other")  # type: ignore[union-attr]
+    site = calls_in(ctx.tools, main)
+    by_name = {s.name: s for s in site}
+    assert pick_definition(ctx, "app/main.py", by_name["helper"], helper)[0] == "app/main.py"  # type: ignore[index]
+    assert pick_definition(ctx, "app/main.py", by_name["other"], other)[0] == "app/good.py"  # type: ignore[index]
