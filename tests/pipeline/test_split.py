@@ -10,9 +10,11 @@ from codemap.pipeline.split import (
     phase_code,
     phase_edges,
     side_nodes,
+    split_children,
     split_phases,
     split_steps,
     steps_edges,
+    subpath_points,
 )
 from codemap.settings import Settings
 from fakes import ScriptedModel, resp, tool_use
@@ -294,3 +296,71 @@ def test_split_steps_accepts_item_wrapped_lists(tmp_path: Path) -> None:
     ctx = make_ctx(tmp_path, model)
     steps, reason = split_steps(ctx, node("p0", 0, 0, (UPLOAD,)), [])
     assert reason is None and len(steps) == 1 and len(model.requests) == 1
+
+
+def many_points(n: int) -> list[Anchor]:
+    return [a(f"app/m{i}.py", 1, 2, f"fn{i}") for i in range(n)]
+
+
+def test_phases_reject_nine_phases_for_ten_points(tmp_path: Path) -> None:
+    pts = many_points(10)
+    nine = submit(
+        phases=[phase_draft(i, i, f"Stage {i}") for i in range(8)] + [phase_draft(8, 9, "End")]
+    )
+    good = submit(phases=[phase_draft(0, 4, "Intake"), phase_draft(5, 9, "Finish")])
+    model = ScriptedModel([nine, good])
+    phases, reason = split_phases(make_ctx(tmp_path, model), "q", pts, [])
+    assert reason is None and len(phases) == 2
+    assert "1 to 7 phases" in str(model.requests[1]["messages"][-1]["content"])
+
+
+def test_phases_accept_seven(tmp_path: Path) -> None:
+    pts = many_points(7)
+    seven = submit(phases=[phase_draft(i, i, f"Stage {i}") for i in range(7)])
+    phases, reason = split_phases(make_ctx(tmp_path, ScriptedModel([seven])), "q", pts, [])
+    assert reason is None and len(phases) == 7
+
+
+def test_title_equal_to_symbol_with_spaces_rejected(tmp_path: Path) -> None:
+    bad = submit(phases=[phase_draft(0, 1, "accept document"), phase_draft(2, 4, "Rest")])
+    good = submit(phases=[phase_draft(0, 4, "Intake")])
+    model = ScriptedModel([bad, good])
+    phases, _ = split_phases(make_ctx(tmp_path, model), "q", POINTS, [])
+    assert [p.title for p in phases] == ["Intake"]
+    assert "only the function name" in str(model.requests[1]["messages"][-1]["content"])
+
+
+def test_title_over_four_words_rejected(tmp_path: Path) -> None:
+    long = submit(phases=[phase_draft(0, 4, "Key the upload for idempotency")])
+    good = submit(phases=[phase_draft(0, 4, "Intake (upload_stage_one)")])
+    model = ScriptedModel([long, good])
+    phases, _ = split_phases(make_ctx(tmp_path, model), "q", POINTS, [])
+    assert phases[0].title == "Intake (upload_stage_one)"
+    assert "more than 4 words" in str(model.requests[1]["messages"][-1]["content"])
+
+
+def test_summary_over_fourteen_words_rejected(tmp_path: Path) -> None:
+    wordy = phase_draft(0, 4, "Intake") | {"summary": " ".join(["word"] * 20)}
+    fine = phase_draft(0, 4, "Intake") | {"summary": "Takes the upload and stores it."}
+    model = ScriptedModel([submit(phases=[wordy]), submit(phases=[fine])])
+    phases, _ = split_phases(make_ctx(tmp_path, model), "q", POINTS, [])
+    assert phases[0].summary == "Takes the upload and stores it."
+    assert "summary has more than 14 words" in str(model.requests[1]["messages"][-1]["content"])
+
+
+def test_split_children_at_level_two_sets_parent_and_level(tmp_path: Path) -> None:
+    draft = step_draft("Accept file", [ACCEPT]) | {"summary": "Stores the file."}
+    model = ScriptedModel([submit(steps=[draft])])
+    parent = node("s1", 1, 0, (UPLOAD, ACCEPT), parent_id="p0")
+    kids, reason = split_children(make_ctx(tmp_path, model), parent, [UPLOAD, ACCEPT], EFFECTS)
+    assert reason is None
+    assert [(k.level, k.parent_id, k.summary) for k in kids] == [(2, "s1", "Stores the file.")]
+    user = model.requests[0]["messages"][0]["content"]
+    assert "Sub-path points:\n0: app/api.py:5-8 upload" in user
+
+
+def test_subpath_points_keeps_only_inside_anchors() -> None:
+    outside = a("app/unused.py", 1, 3, "legacy_upload")
+    phase = node("p0", 0, 0, (UPLOAD, ACCEPT))
+    hops = [hop(UPLOAD, ACCEPT), hop(ACCEPT, outside), hop(UPLOAD, ACCEPT)]
+    assert subpath_points(phase, hops) == [UPLOAD, ACCEPT]
