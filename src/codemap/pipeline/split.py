@@ -186,7 +186,7 @@ def split_phases(
             user=user,
             tools=[],
             submit_schema=_phases_schema(points),
-            budget=ctx.budget,
+            budget=ctx.build_budget,
         )
     except (LimitReached, ModelError) as exc:
         return [], str(exc)
@@ -249,16 +249,23 @@ def phase_code(tools: RepoTools, phase: Node) -> str:
 
     Above MAX_CODE_LINES in total, send signatures and the first HEAD_LINES of each anchor.
     """
-    bodies = [(a, _anchor_lines(tools, a)) for a in phase.anchors]
-    small = sum(len(lines) for _, lines in bodies) <= MAX_CODE_LINES
+    return anchors_code(tools, phase.anchors, MAX_CODE_LINES, HEAD_LINES)
+
+
+def anchors_code(
+    tools: RepoTools, anchors: Sequence[Anchor], max_lines: int, head_lines: int
+) -> str:
+    """Anchored code numbered by file line, or signatures plus heads above `max_lines`."""
+    bodies = [(a, _anchor_lines(tools, a)) for a in anchors]
+    small = sum(len(lines) for _, lines in bodies) <= max_lines
     blocks: list[str] = []
     for anchor, lines in bodies:
         head = f"## {anchor.file}:{anchor.start_line}-{anchor.end_line} {anchor.symbol}"
         if small:
             blocks.append(f"{head}\n{_numbered(lines, anchor.start_line)}")
             continue
-        shown = _numbered(lines[:HEAD_LINES], anchor.start_line)
-        cut = f"[first {HEAD_LINES} of {len(lines)} lines; signatures below]"
+        shown = _numbered(lines[:head_lines], anchor.start_line)
+        cut = f"[first {head_lines} of {len(lines)} lines; signatures below]"
         blocks.append(f"{head}\n{cut}\n{shown}\n{_signatures(tools, anchor)}".rstrip())
     return "\n\n".join(blocks)
 
@@ -297,7 +304,7 @@ def split_children(
             user=user,
             tools=[],
             submit_schema=_children_schema(parent),
-            budget=ctx.budget,
+            budget=ctx.build_budget,
             max_turns=STEP_MAX_TURNS,
         )
     except (LimitReached, ModelError) as exc:

@@ -24,7 +24,8 @@ def make_ctx(root: Path, model: Any, limits: Limits | None = None) -> TraceConte
         root=root,
         tools=tools,
         model=model,
-        budget=budget,
+        walk_budget=budget,
+        build_budget=budget,
         store=None,  # type: ignore[arg-type]
         verdicts=None,  # type: ignore[arg-type]
         settings=None,  # type: ignore[arg-type]
@@ -113,7 +114,7 @@ def test_model_error_propagates(repo: Path) -> None:
 
 def test_limit_reached_raises_resolve_limit(repo: Path) -> None:
     ctx = make_ctx(repo, ScriptedModel([]), Limits(3600, 10**9, 100.0, 0))
-    ctx.budget.count_tool_call()
+    ctx.walk_budget.count_tool_call()
     with pytest.raises(ResolveLimitError, match="tool calls"):
         resolve_entry(ctx, "anything")
 

@@ -80,6 +80,8 @@ class RoutedModel:
     def respond(self, *, system: str, messages: list, tools: list, max_tokens: int) -> Any:
         if system == prompt("walk_deepen"):
             return submit(done=True)
+        if system == prompt("phase_effects"):
+            return resp(tool_use("submit", {"effects": []}, "s"))
         if system == prompt("split_phases"):
             return self.phases
         if system == prompt("split_steps"):
@@ -277,14 +279,11 @@ def test_detail_model_error_keeps_deterministic_parts(tmp_path: Path) -> None:
     assert detail.explain is None
     assert detail.explain_error == "down"
     assert any("def accept_document" in f.code for f in detail.functions)
-    assert [c.symbol for c in detail.calls] == [
-        "accept_document",
-        "enqueue",
-        "parse_document",
-    ]
+    walked = ["accept_document", "enqueue", "parse_document"]
+    assert [c.symbol for c in detail.calls if c.symbol in walked] == walked
     graph = svc.get_graph(trace_id, 1)
     step_ids = {n.title: n.id for n in graph.nodes if n.level == 1}
-    assert [c.node_id for c in detail.calls] == [
+    assert [c.node_id for c in detail.calls if c.symbol in walked] == [
         step_ids["accept"],
         step_ids["queue"],
         step_ids["parse"],

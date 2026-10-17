@@ -10,7 +10,15 @@ from codemap.settings import Settings
 from fakes import ScriptedModel
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "sample_repo"
-PROMPTS = ["resolve", "walk_skeleton", "walk_deepen", "verify", "split_phases", "split_steps"]
+PROMPTS = [
+    "resolve",
+    "walk_skeleton",
+    "walk_deepen",
+    "verify",
+    "split_phases",
+    "split_steps",
+    "phase_effects",
+]
 
 
 @pytest.fixture
@@ -53,4 +61,4 @@ def test_build_context(repo: Path) -> None:
     assert ctx.trace_id == "t1"
     assert ctx.tools.index is not None
     assert ctx.model is not model
-    assert ctx.budget.cost_usd == 0
+    assert ctx.totals() == (0, 0, 0)

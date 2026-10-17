@@ -83,7 +83,7 @@ def verify_hop(ctx: TraceContext, hop: Hop) -> VerifierResult:
             user=_claim(hop),
             tools=read_tools(ctx.tools),
             submit_schema=VerdictSubmit,
-            budget=ctx.budget,
+            budget=ctx.walk_budget,
         )
     except (LimitReached, ModelError) as exc:
         return VerifierResult(verdict="unsure", evidence=f"verifier unavailable: {exc}")

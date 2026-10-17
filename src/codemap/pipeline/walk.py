@@ -143,18 +143,18 @@ class _Walker:
             self._caller_text(hop.caller), hop.callee.symbol
         ):
             hop = hop.model_copy(update={"verdict": "code_checked"})
-            self._store(hop)
+            self.store(hop)
             return "recorded"
         hop = hop.model_copy(update={"hop_type": "indirect"})
         result = verify_hop(self.ctx, hop)
         hop = hop.model_copy(update={"verdict": result.verdict, "evidence": result.evidence})
-        self._store(hop, verdict=result.verdict)
+        self.store(hop, verdict=result.verdict)
         if result.verdict != "rejected":
             return "recorded"
         suggested = _fmt(result.suggested_callee) if result.suggested_callee else "none"
         return f"rejected: {result.evidence}; suggested callee: {suggested}"
 
-    def _store(self, hop: Hop, verdict: str | None = None) -> None:
+    def store(self, hop: Hop, verdict: str | None = None) -> None:
         self.hops.append(hop)
         self.ctx.store.add_hop(self.ctx.trace_id, hop)  # saved now so a crash keeps it
         self.emit("hop_found", f"{_fmt(hop.caller)} -> {_fmt(hop.callee)}", hop_id=hop.id)
@@ -220,7 +220,7 @@ def _run(walker: _Walker, system: str, user: str) -> WalkResult:
             user=user,
             tools=_walk_tools(walker),
             submit_schema=WalkSubmit,
-            budget=ctx.budget,
+            budget=ctx.walk_budget,
             max_turns=ctx.settings.max_tool_calls,
             keep_recent_turns=KEEP_RECENT_TURNS,
         )

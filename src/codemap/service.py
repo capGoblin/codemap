@@ -150,10 +150,7 @@ class Service:
         has_work = bool(self._store.get_hops(trace_id))
         status: TraceStatus = "partial" if has_work or cancelled else "failed"
         if ctx is not None:
-            budget = ctx.budget
-            self._store.set_totals(
-                trace_id, budget.input_tokens, budget.output_tokens, budget.cost_usd
-            )
+            self._store.set_totals(trace_id, *ctx.totals())
         self._store.set_status(trace_id, status)
         message = str(exc) or type(exc).__name__
         self._store.add_event(

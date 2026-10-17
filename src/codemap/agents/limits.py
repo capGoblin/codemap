@@ -71,6 +71,14 @@ class Budget:
     def _cost(self) -> float:
         return (self._input * self._price_in + self._output * self._price_out) / 1_000_000
 
+    def exhausted(self) -> bool:
+        """True when `check` would raise now."""
+        try:
+            self.check()
+        except LimitReached:
+            return True
+        return False
+
     def check(self) -> None:
         """Raise before a model call when a limit is hit or the user cancelled."""
         if self._cancel is not None and self._cancel.is_set():

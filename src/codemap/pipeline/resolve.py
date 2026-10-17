@@ -90,7 +90,7 @@ def resolve_entry(ctx: TraceContext, question: str) -> list[EntryCandidate]:
             user=question,
             tools=read_tools(ctx.tools),
             submit_schema=ResolveSubmit,
-            budget=ctx.budget,
+            budget=ctx.walk_budget,
         )
     except LimitReached as exc:
         raise ResolveLimitError(exc.reason) from exc

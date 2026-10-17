@@ -164,7 +164,9 @@ def test_split_steps_drops_outside_anchor(tmp_path: Path) -> None:
 
 def test_split_steps_limit_returns_reason(tmp_path: Path) -> None:
     ctx = make_ctx(tmp_path, ScriptedModel([]))
-    ctx.budget._limits = Limits(wall_seconds=1, max_tokens=0, max_cost_usd=1.0, max_tool_calls=1)
+    ctx.build_budget._limits = Limits(
+        wall_seconds=1, max_tokens=0, max_cost_usd=1.0, max_tool_calls=1
+    )
     phase = node("p0", 0, 0, (UPLOAD,))
     steps, reason = split_steps(ctx, phase, EFFECTS)
     assert steps == [] and reason
