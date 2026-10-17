@@ -1,7 +1,8 @@
 """Pipeline context, the read-only tool set shared by every agent, and prompt loading."""
 
+import threading
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -25,7 +26,10 @@ class TraceContext:
     """Everything one trace run shares.
 
     `emit` writes through `store`. The store connection belongs to the pipeline thread.
-    Split workers on other threads must not call `emit` or touch `store`.
+    Split workers on other threads must not call `emit`. They share the store connection
+    only through the caches, and its lock makes that safe.
+
+    `cancel` is shared with `budget`, so the tool loop stops before its next model call.
     """
 
     root: Path
@@ -37,6 +41,7 @@ class TraceContext:
     settings: Settings
     emit: Callable[[Event], object]
     trace_id: str
+    cancel: threading.Event = field(default_factory=threading.Event)
 
 
 def _schema(properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
@@ -92,6 +97,7 @@ def build_context(
     trace_id: str,
     model: ChatModel | None = None,
     db_path: Path | None = None,
+    cancel: threading.Event | None = None,
 ) -> TraceContext:
     conn = open_db(db_path or root / ".codemap" / "codemap.db")
     store = TraceStore(conn)
@@ -101,7 +107,8 @@ def build_context(
         max_cost_usd=settings.max_cost_usd,
         max_tool_calls=settings.max_tool_calls,
     )
-    budget = Budget(limits, settings.price_in_per_mtok, settings.price_out_per_mtok)
+    cancel = cancel or threading.Event()
+    budget = Budget(limits, settings.price_in_per_mtok, settings.price_out_per_mtok, cancel=cancel)
     inner = model or AnthropicModel(
         settings.anthropic_base_url,
         settings.anthropic_auth_token.get_secret_value(),
@@ -120,4 +127,5 @@ def build_context(
         settings=settings,
         emit=store.add_event,
         trace_id=trace_id,
+        cancel=cancel,
     )

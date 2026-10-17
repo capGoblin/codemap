@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from codemap.agents.limits import LimitReached
 from codemap.agents.loop import run_tool_loop
+from codemap.agents.schema import tolerant_list
 from codemap.domain.models import Anchor, EntryCandidate
 from codemap.pipeline.context import TraceContext, prompt, read_tools
 from codemap.repo.anchors import check_anchor, with_hash
@@ -17,6 +18,16 @@ _DIRECT = re.compile(r"^([\w./@+-]+\.\w+):([A-Za-z_$][\w$.]*)$")
 
 class ResolveSubmit(BaseModel):
     candidates: list[EntryCandidate] = Field(max_length=MAX_CANDIDATES)
+
+    _unwrap = tolerant_list("candidates")
+
+
+class ResolveLimitError(Exception):
+    """A run limit stopped the resolve agent. This is not the same as "no entry point"."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 def parse_direct_entry(text: str) -> tuple[str, str] | None:
@@ -67,8 +78,8 @@ def _validated(ctx: TraceContext, candidates: list[EntryCandidate]) -> list[Entr
 def resolve_entry(ctx: TraceContext, question: str) -> list[EntryCandidate]:
     """Return validated entry candidates, best first. Empty when none survive.
 
-    Returns `[]` when a run limit is hit. Raises `ModelError` when the model call fails,
-    so the caller can tell a failed endpoint from "no entry point found".
+    Raises `ResolveLimitError` when a run limit is hit and `ModelError` when the model call
+    fails, so the caller can tell both from "no entry point found".
     """
     if direct := parse_direct_entry(question):
         return _validated(ctx, _direct_candidates(ctx, *direct))
@@ -81,6 +92,6 @@ def resolve_entry(ctx: TraceContext, question: str) -> list[EntryCandidate]:
             submit_schema=ResolveSubmit,
             budget=ctx.budget,
         )
-    except LimitReached:
-        return []
+    except LimitReached as exc:
+        raise ResolveLimitError(exc.reason) from exc
     return _validated(ctx, answer.candidates)

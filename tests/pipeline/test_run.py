@@ -10,7 +10,7 @@ from codemap.agents.model import ModelError, ModelResponse
 from codemap.domain.events import Event
 from codemap.domain.models import Anchor, Trace, TraceMode
 from codemap.pipeline.context import TraceContext, build_context, prompt
-from codemap.pipeline.run import expand_phase, run_trace
+from codemap.pipeline.run import ExpandError, expand_phase, run_trace
 from codemap.settings import Settings
 from fakes import resp, tool_use
 
@@ -290,3 +290,106 @@ def test_run_trace_warns_about_unreachable_hops(tmp_path: Path) -> None:
     run_trace(ctx, "q", ENTRY, "eager")
     lost = [e.message for e in events if e.kind == "warning" and "not reachable" in e.message]
     assert len(lost) == 1 and "parse_document" in lost[0]
+
+
+def test_phases_are_saved_before_steps_split(tmp_path: Path) -> None:
+    class Crash(RoutedModel):
+        def respond(self, **kw: Any) -> Any:
+            if kw["system"] == prompt("split_steps"):
+                raise RuntimeError("crash in step split")
+            return super().respond(**kw)
+
+    ctx, _ = setup(tmp_path, Crash(FULL_WALK, PHASES, STEPS))
+    with pytest.raises(RuntimeError):
+        run_trace(ctx, "q", ENTRY, "eager")
+    titles = [n.title for n in ctx.store.get_graph("t1", 0).nodes]
+    assert titles == ["intake", "worker"]
+
+
+def test_phase_split_failure_saves_one_phase_per_path_point(tmp_path: Path) -> None:
+    class PhasesFail(RoutedModel):
+        def respond(self, **kw: Any) -> Any:
+            if kw["system"] == prompt("split_phases"):
+                raise ModelError("529 overloaded")
+            return super().respond(**kw)
+
+    ctx, events = setup(tmp_path, PhasesFail(FULL_WALK, PHASES, STEPS))
+    assert run_trace(ctx, "q", ENTRY, "eager") == "partial"
+    graph = ctx.store.get_graph("t1", 1)
+    assert [n.title for n in graph.nodes] == [
+        "upload", "accept_document", "enqueue", "parse_document", "store_pages",
+    ]  # fmt: skip
+    assert all(n.level == 0 for n in graph.nodes)
+    assert all(n.boundary_reason.startswith("split failed: ") for n in graph.nodes)
+    assert "529 overloaded" in graph.nodes[0].boundary_reason
+    assert "529 overloaded" in events[-1].message
+    assert len(graph.edges) == 4
+
+
+def test_step_failure_is_recorded_on_the_phase(tmp_path: Path) -> None:
+    class StepsFail(RoutedModel):
+        def respond(self, **kw: Any) -> Any:
+            if kw["system"] == prompt("split_steps"):
+                raise ModelError("boom")
+            return super().respond(**kw)
+
+    ctx, _ = setup(tmp_path, StepsFail(FULL_WALK, PHASES, STEPS))
+    run_trace(ctx, "q", ENTRY, "eager")
+    phases = ctx.store.get_graph("t1", 0).nodes
+    assert all(any(w.startswith("steps unavailable: ") for w in p.warnings) for p in phases)
+    assert "boom" in phases[0].warnings[0]
+
+
+def test_expand_failure_raises_with_reason(tmp_path: Path) -> None:
+    class StepsFail(RoutedModel):
+        def respond(self, **kw: Any) -> Any:
+            if kw["system"] == prompt("split_steps"):
+                raise ModelError("rate limited")
+            return super().respond(**kw)
+
+    ctx, _ = setup(tmp_path, StepsFail(FULL_WALK, PHASES, STEPS), mode="lazy")
+    run_trace(ctx, "q", ENTRY, "lazy")
+    phase = ctx.store.get_graph("t1", 0).nodes[0]
+    with pytest.raises(ExpandError, match="rate limited"):
+        expand_phase(ctx, phase.id)
+
+
+def test_hop_limit_reason_reaches_finished_event(tmp_path: Path) -> None:
+    ctx, events = setup(tmp_path, full_model())
+    ctx.settings = ctx.settings.model_copy(update={"max_hops": 2})
+    assert run_trace(ctx, "q", ENTRY, "eager") == "partial"
+    assert "hop limit reached" in events[-1].message
+
+
+def test_cancel_before_run_is_partial_never_complete(tmp_path: Path) -> None:
+    ctx, events = setup(tmp_path, full_model())
+    ctx.cancel.set()
+    assert run_trace(ctx, "q", ENTRY, "eager") == "partial"
+    trace = ctx.store.get_trace("t1")
+    assert trace is not None and trace.status == "partial"
+    assert "cancelled" in events[-1].message
+
+
+def test_cancel_during_split_returns_fast_and_stays_partial(tmp_path: Path) -> None:
+    started = threading.Event()
+    release = threading.Event()
+
+    class Slow(RoutedModel):
+        def respond(self, **kw: Any) -> Any:
+            if kw["system"] == prompt("split_steps"):
+                started.set()
+                release.wait(30)
+            return super().respond(**kw)
+
+    ctx, _ = setup(tmp_path, Slow(FULL_WALK, PHASES, STEPS))
+    result: list[str] = []
+    thread = threading.Thread(target=lambda: result.append(run_trace(ctx, "q", ENTRY, "eager")))
+    thread.start()
+    assert started.wait(10)
+    ctx.cancel.set()
+    thread.join(5)
+    release.set()
+    assert not thread.is_alive()
+    assert result == ["partial"]
+    trace = ctx.store.get_trace("t1")
+    assert trace is not None and trace.status == "partial"

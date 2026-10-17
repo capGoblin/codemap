@@ -200,6 +200,14 @@ class TraceStore:
             self._insert(trace_id, nodes, edges)
 
     @_locked
+    def replace_graph(self, trace_id: str, nodes: Sequence[Node], edges: Sequence[Edge]) -> None:
+        """Swap every node and edge of a trace for these, in one transaction."""
+        with self._conn:
+            self._conn.execute("DELETE FROM edges WHERE trace_id = ?", (trace_id,))
+            self._conn.execute("DELETE FROM nodes WHERE trace_id = ?", (trace_id,))
+            self._insert(trace_id, nodes, edges)
+
+    @_locked
     def replace_children(
         self, trace_id: str, parent_id: str, nodes: Sequence[Node], edges: Sequence[Edge]
     ) -> None:

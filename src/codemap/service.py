@@ -21,10 +21,10 @@ from codemap.domain.models import (
     TraceMode,
     TraceStatus,
 )
-from codemap.pipeline.context import build_context
+from codemap.pipeline.context import TraceContext, build_context
 from codemap.pipeline.detail import build_detail
-from codemap.pipeline.resolve import resolve_entry
-from codemap.pipeline.run import expand_phase, run_trace
+from codemap.pipeline.resolve import ResolveLimitError, resolve_entry
+from codemap.pipeline.run import ExpandError, expand_phase, run_trace
 from codemap.repo.anchors import is_stale
 from codemap.repo.ignore import RepoIgnore
 from codemap.repo.index import SymbolIndex
@@ -34,7 +34,7 @@ from codemap.store.caches import SqliteSymbolCache
 from codemap.store.db import open_db
 from codemap.store.traces import TraceStore
 
-__all__ = ["ModelError", "Service"]
+__all__ = ["ExpandError", "ModelError", "ResolveLimitError", "Service"]
 
 log = logging.getLogger(__name__)
 _EXCLUDE_LINE = ".codemap/"
@@ -72,11 +72,12 @@ class Service:
         self._tools = RepoTools(root, RepoIgnore(root))
         self._tools.index = SymbolIndex(self._tools, SqliteSymbolCache(conn))
         self._threads: dict[str, threading.Thread] = {}
+        self._cancels: dict[str, threading.Event] = {}
         self._store.mark_running_partial()
         _exclude_codemap(root)
 
     def resolve(self, question: str) -> list[EntryCandidate]:
-        """Raises ModelError when the model call fails."""
+        """Raises ModelError when the model call fails, ResolveLimitError on a run limit."""
         ctx = build_context(self.root, self.settings, "resolve", self._model)
         return resolve_entry(ctx, question)
 
@@ -121,20 +122,31 @@ class Service:
         thread = threading.Thread(
             target=self._run, args=(trace_id, question, entry, mode), daemon=True
         )
+        self._cancels[trace_id] = threading.Event()
         self._threads[trace_id] = thread
         thread.start()
         return trace_id
 
     def _run(self, trace_id: str, question: str, entry: EntryCandidate, mode: TraceMode) -> None:
+        ctx = None
         try:
-            ctx = build_context(self.root, self.settings, trace_id, self._model)
+            ctx = build_context(
+                self.root, self.settings, trace_id, self._model, cancel=self._cancels[trace_id]
+            )
             run_trace(ctx, question, entry.anchor, mode)
         except Exception as exc:
             log.exception("trace %s failed", trace_id)
-            self._fail(trace_id, exc)
+            self._fail(trace_id, exc, ctx)
 
-    def _fail(self, trace_id: str, exc: Exception) -> None:
-        status: TraceStatus = "partial" if self._store.get_hops(trace_id) else "failed"
+    def _fail(self, trace_id: str, exc: Exception, ctx: TraceContext | None = None) -> None:
+        cancelled = self._cancels[trace_id].is_set()
+        has_work = bool(self._store.get_hops(trace_id))
+        status: TraceStatus = "partial" if has_work or cancelled else "failed"
+        if ctx is not None:
+            budget = ctx.budget
+            self._store.set_totals(
+                trace_id, budget.input_tokens, budget.output_tokens, budget.cost_usd
+            )
         self._store.set_status(trace_id, status)
         message = str(exc) or type(exc).__name__
         self._store.add_event(
@@ -147,8 +159,15 @@ class Service:
             )
         )
 
-    def mark_partial(self, trace_id: str) -> None:
-        """Mark a trace partial, for example after the user stops the CLI."""
+    def cancel(self, trace_id: str) -> None:
+        """Stop a running trace. The tool loop sees the event before its next model call.
+
+        The trace ends as `partial` with its work kept.
+        """
+        thread, event = self._threads.get(trace_id), self._cancels.get(trace_id)
+        if thread is None or event is None or not thread.is_alive():
+            return
+        event.set()
         self._store.set_status(trace_id, "partial")
 
     def wait(self, trace_id: str, timeout: float | None = None) -> TraceStatus:

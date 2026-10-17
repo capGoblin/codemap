@@ -4,7 +4,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from codemap.domain.models import Anchor, Edge, Node
-from codemap.domain.rules import anchor_contains, io_chain_warning, rollup_effects
+from codemap.domain.rules import (
+    anchor_contains,
+    dedupe_effects,
+    io_chain_warning,
+    rollup_effects,
+    uncovered_effects,
+)
 from codemap.repo.anchors import check_anchor, check_range
 from codemap.repo.tools import RepoTools
 
@@ -73,7 +79,9 @@ def _rollup(nodes: list[Node], warnings: list[str]) -> list[Node]:
     for n in nodes:
         children = sorted(steps.get(n.id, []), key=lambda s: s.order)
         if n.level == 0 and children:
-            n = n.model_copy(update={"effects": rollup_effects(children)})
+            # Steps may cover only part of the phase. Keep effects on the lines they skip.
+            effects = dedupe_effects((*rollup_effects(children), *uncovered_effects(n, children)))
+            n = n.model_copy(update={"effects": effects})
             if (problem := io_chain_warning(n, children)) is not None:
                 n = _add_warning(n, problem, warnings)
         out.append(n)

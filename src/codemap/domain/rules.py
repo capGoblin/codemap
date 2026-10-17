@@ -1,5 +1,5 @@
 import re
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 
 from codemap.domain.models import Anchor, Effect, Hop, Node
 
@@ -65,16 +65,28 @@ def assign_effects(anchors: Sequence[Anchor], effects: Sequence[Effect]) -> tupl
     return tuple(e for e in effects if any(anchor_contains(a, e.anchor) for a in anchors))
 
 
-def rollup_effects(children: Sequence[Node]) -> tuple[Effect, ...]:
+def dedupe_effects(effects: Iterable[Effect]) -> tuple[Effect, ...]:
     seen: set[tuple[object, ...]] = set()
     out: list[Effect] = []
-    for child in children:
-        for e in child.effects:
-            key = (e.category, e.target, e.op, e.fields, anchor_key(e.anchor))
-            if key not in seen:
-                seen.add(key)
-                out.append(e)
+    for e in effects:
+        key = (e.category, e.target, e.op, e.fields, anchor_key(e.anchor))
+        if key not in seen:
+            seen.add(key)
+            out.append(e)
     return tuple(out)
+
+
+def rollup_effects(children: Sequence[Node]) -> tuple[Effect, ...]:
+    return dedupe_effects(e for child in children for e in child.effects)
+
+
+def uncovered_effects(phase: Node, children: Sequence[Node]) -> tuple[Effect, ...]:
+    """The phase's own effects on lines that no step anchor covers."""
+    return tuple(
+        e
+        for e in phase.effects
+        if not any(anchor_contains(a, e.anchor) for c in children for a in c.anchors)
+    )
 
 
 def io_chain_warning(phase: Node, steps: Sequence[Node]) -> str | None:

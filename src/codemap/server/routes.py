@@ -6,7 +6,7 @@ from codemap import __version__
 from codemap.domain.models import FunctionDetail, Trace, TraceGraph
 from codemap.server.schemas import Health
 from codemap.server.sse import event_stream
-from codemap.service import Service
+from codemap.service import ExpandError, Service
 
 
 def make_router(service: Service) -> APIRouter:
@@ -43,7 +43,10 @@ def make_router(service: Service) -> APIRouter:
         has_children = any(n.parent_id == node_id for n in graph.nodes)
         if graph.trace.mode != "lazy" and has_children:
             raise HTTPException(409, "node is already expanded")
-        return service.expand_node(trace_id, node_id)
+        try:
+            return service.expand_node(trace_id, node_id)
+        except ExpandError as exc:
+            raise HTTPException(502, f"Could not split the phase: {exc}") from exc
 
     @router.get("/traces/{trace_id}/nodes/{node_id}/detail")
     def detail(trace_id: str, node_id: str) -> list[FunctionDetail]:
