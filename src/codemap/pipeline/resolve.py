@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 
 from codemap.agents.limits import LimitReached
 from codemap.agents.loop import run_tool_loop
-from codemap.agents.model import ModelError
 from codemap.domain.models import Anchor, EntryCandidate
 from codemap.pipeline.context import TraceContext, prompt, read_tools
 from codemap.repo.anchors import check_anchor, with_hash
@@ -66,7 +65,11 @@ def _validated(ctx: TraceContext, candidates: list[EntryCandidate]) -> list[Entr
 
 
 def resolve_entry(ctx: TraceContext, question: str) -> list[EntryCandidate]:
-    """Return validated entry candidates, best first. Empty when none survive."""
+    """Return validated entry candidates, best first. Empty when none survive.
+
+    Returns `[]` when a run limit is hit. Raises `ModelError` when the model call fails,
+    so the caller can tell a failed endpoint from "no entry point found".
+    """
     if direct := parse_direct_entry(question):
         return _validated(ctx, _direct_candidates(ctx, *direct))
     try:
@@ -78,6 +81,6 @@ def resolve_entry(ctx: TraceContext, question: str) -> list[EntryCandidate]:
             submit_schema=ResolveSubmit,
             budget=ctx.budget,
         )
-    except (LimitReached, ModelError):
+    except LimitReached:
         return []
     return _validated(ctx, answer.candidates)

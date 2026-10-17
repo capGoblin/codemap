@@ -108,9 +108,10 @@ def test_limit_reached_returns_empty(repo: Path) -> None:
     assert resolve_entry(ctx, "anything") == []
 
 
-def test_model_error_returns_empty(repo: Path) -> None:
+def test_model_error_propagates(repo: Path) -> None:
     class Failing:
         def respond(self, **_: Any) -> Any:
             raise ModelError("boom")
 
-    assert resolve_entry(make_ctx(repo, Failing()), "anything") == []
+    with pytest.raises(ModelError):
+        resolve_entry(make_ctx(repo, Failing()), "anything")
