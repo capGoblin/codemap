@@ -9,7 +9,7 @@ from codemap.agents.model import ModelError
 from codemap.domain.events import Event
 from codemap.domain.models import Anchor, Node, Trace
 from codemap.pipeline.context import TraceContext, build_context
-from codemap.pipeline.walk import deepen_budgets, walk_deepen, walk_path, walk_skeleton
+from codemap.pipeline.walk import deepen_budgets, next_budget, walk_deepen, walk_path, walk_skeleton
 from codemap.settings import Settings
 from fakes import ScriptedModel, resp, tool_use
 
@@ -261,12 +261,15 @@ def test_deepen_budget_is_its_own(tmp_path: Path) -> None:
     assert len(result.hops) == 1 and result.partial_reason == "hop limit reached"
 
 
-def test_deepen_budgets_weighted_and_floored(tmp_path: Path) -> None:
-    ctx, _, _ = make(tmp_path, [])
-    big = {"file": "app/big.py", "start_line": 1, "end_line": 90, "symbol": "big"}
-    small = {"file": "app/small.py", "start_line": 1, "end_line": 10, "symbol": "small"}
-    tiny = {"file": "app/tiny.py", "start_line": 1, "end_line": 1, "symbol": "tiny"}
-    phases = [phase_node("a", big), phase_node("b", small), phase_node("c", tiny)]
-    budgets = deepen_budgets(phases, ctx.tools, 100)
-    assert budgets["a"] > budgets["b"] > budgets["c"] == 5
-    assert budgets["a"] >= 80
+def test_deepen_budgets_equal_and_floored() -> None:
+    phases = [phase_node(i, UPLOAD) for i in "abcd"]
+    assert deepen_budgets(phases, 160) == [40, 40, 40, 40]
+    assert deepen_budgets(phases, 8) == [5, 5, 5, 5]
+    assert deepen_budgets([], 160) == []
+
+
+def test_next_budget_carries_unused_hops() -> None:
+    base = deepen_budgets([phase_node(i, UPLOAD) for i in "ab"], 20)
+    used_first = 4
+    assert next_budget(base[1], base[0] - used_first) == 16
+    assert next_budget(base[1], 0) == 10

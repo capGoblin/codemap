@@ -29,7 +29,6 @@ from codemap.domain.rules import (
 from codemap.pipeline.context import TraceContext, prompt, read_tools
 from codemap.pipeline.verify import verify_hop
 from codemap.repo.anchors import check_anchor, with_hash
-from codemap.repo.tools import RepoTools
 
 KEEP_RECENT_TURNS = 12
 HOP_LIMIT_TEXT = "hop limit reached; call submit"
@@ -249,13 +248,16 @@ def walk_deepen(
     return _run(walker, prompt("walk_deepen"), _deepen_message(phase, question, budget, known))
 
 
-def deepen_budgets(
-    phases: list[Node], tools: RepoTools, total: int, floor: int = 5
-) -> dict[str, int]:
-    """Split `total` hops across phases by anchored lines. Every phase gets at least `floor`."""
-    weights = {p.id: sum(a.end_line - a.start_line + 1 for a in p.anchors) for p in phases}
-    weight_sum = sum(weights.values()) or 1
-    return {pid: max(floor, round(total * w / weight_sum)) for pid, w in weights.items()}
+def deepen_budgets(phases: list[Node], total: int, floor: int = 5) -> list[int]:
+    """Equal share per phase, in phase order. Anchored size does not predict where logic is."""
+    if not phases:
+        return []
+    return [max(floor, total // len(phases))] * len(phases)
+
+
+def next_budget(base: int, carried: int) -> int:
+    """Budget for the next phase: its base share plus hops the earlier phases left unused."""
+    return base + carried
 
 
 def walk_path(ctx: TraceContext, entry: Anchor, question: str) -> WalkResult:
