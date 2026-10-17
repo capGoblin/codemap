@@ -1,7 +1,7 @@
 import re
 from collections.abc import Iterable, Sequence
 
-from codemap.domain.models import Anchor, Effect, EffectOp, Hop, Node
+from codemap.domain.models import Anchor, Bridge, Effect, EffectOp, Hop, Node
 
 _PATH_KINDS = {"call", "async"}
 _SIDE_KINDS = {"error", "branch"}
@@ -22,7 +22,13 @@ def anchors_overlap(a: Anchor, b: Anchor) -> bool:
     return a.file == b.file and a.start_line <= b.end_line and b.start_line <= a.end_line
 
 
-def path_points(entry: Anchor, hops: Sequence[Hop]) -> list[Anchor]:
+def ordered_points(entry: Anchor, hops: Sequence[Hop]) -> tuple[list[Anchor], list[Bridge]]:
+    """Path points by DFS from the entry, then each unreached component in recorded order.
+
+    A component is a group of unreached hops linked by overlapping anchors. Its root is the
+    first recorded caller that is not a callee in the component. Each joined component adds a
+    Bridge from the last point so far to its root, so no recorded hop is lost.
+    """
     edges = [h for h in hops if h.kind in _PATH_KINDS and h.verdict != "rejected"]
     order: list[Anchor] = []
 
@@ -35,7 +41,43 @@ def path_points(entry: Anchor, hops: Sequence[Hop]) -> list[Anchor]:
                 visit(h.callee)
 
     visit(entry)
-    return order
+    rest = [h for h in edges if not any(anchors_overlap(h.caller, p) for p in order)]
+    bridges: list[Bridge] = []
+    for comp in _components(rest):
+        callees = [h.callee for h in comp]
+        roots = [h.caller for h in comp if not any(anchors_overlap(h.caller, c) for c in callees)]
+        root = (roots or [comp[0].caller])[0]
+        if any(anchors_overlap(root, seen) for seen in order):
+            continue
+        bridges.append(Bridge(from_anchor=order[-1], to_anchor=root))
+        visit(root)
+    return order, bridges
+
+
+def _components(hops: Sequence[Hop]) -> list[list[Hop]]:
+    """Group hops whose anchors overlap, directly or through other hops. Recorded order."""
+    comps: list[list[Hop]] = []
+    for h in hops:
+        linked = [
+            c
+            for c in comps
+            if any(
+                anchors_overlap(x, y)
+                for k in c
+                for x in (k.caller, k.callee)
+                for y in (h.caller, h.callee)
+            )
+        ]
+        merged = [h]
+        for c in linked:
+            merged = [*c, *merged]
+            comps.remove(c)
+        comps.append(sorted(merged, key=hops.index))
+    return sorted(comps, key=lambda c: hops.index(c[0]))
+
+
+def path_points(entry: Anchor, hops: Sequence[Hop]) -> list[Anchor]:
+    return ordered_points(entry, hops)[0]
 
 
 def unreachable_hops(points: Sequence[Anchor], hops: Sequence[Hop]) -> list[Hop]:

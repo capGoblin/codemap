@@ -291,14 +291,22 @@ def test_run_trace_eager_concurrency_4(tmp_path: Path) -> None:
     assert len([n for n in graph.nodes if n.level == 1]) == 5
 
 
-def test_run_trace_warns_about_unreachable_hops(tmp_path: Path) -> None:
+def test_run_trace_bridges_unreachable_hops(tmp_path: Path) -> None:
     walk = [hop(UPLOAD, ACCEPT, "h1"), hop(PARSE, STORE, "h2"), submit(done=True)]
-    steps = {"only": submit(steps=[step_draft("accept", [ACCEPT])])}
-    phases = submit(phases=[phase_draft(0, 1, "only")])
+    steps = {
+        "first": submit(steps=[step_draft("accept", [ACCEPT])]),
+        "second": submit(steps=[step_draft("store", [STORE])]),
+    }
+    phases = submit(phases=[phase_draft(0, 1, "first"), phase_draft(2, 3, "second")])
     ctx, events = setup(tmp_path, RoutedModel(walk, phases, steps))
     run_trace(ctx, "q", ENTRY, "eager")
-    lost = [e.message for e in events if e.kind == "warning" and "not reachable" in e.message]
-    assert len(lost) == 1 and "parse_document" in lost[0]
+    msgs = [e.message for e in events if e.kind == "warning"]
+    assert not [m for m in msgs if "not reachable" in m]
+    bridged = [m for m in msgs if m.startswith("bridged ")]
+    assert len(bridged) == 1 and "no recorded code link" in bridged[0]
+    stored = [h for h in ctx.store.get_hops("t1") if h.evidence.startswith("bridged:")]
+    assert [(h.kind, h.hop_type, h.verdict) for h in stored] == [("async", "indirect", "unsure")]
+    assert {(e.kind) for e in ctx.store.get_graph("t1", 0).edges} == {"async"}
 
 
 def test_phases_are_saved_before_steps_split(tmp_path: Path) -> None:

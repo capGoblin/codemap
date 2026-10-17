@@ -51,6 +51,13 @@ class Hop(_Frozen):
     evidence: str = ""
 
 
+class Bridge(_Frozen):
+    """A join between two path components that have no recorded code link."""
+
+    from_anchor: Anchor
+    to_anchor: Anchor
+
+
 class Node(_Frozen):
     id: str
     level: int
