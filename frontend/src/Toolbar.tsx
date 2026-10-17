@@ -1,27 +1,16 @@
-import { useReactFlow } from "@xyflow/react";
 import { CATEGORY_COLOR, CATEGORY_LABEL, type UiCategory } from "./effects/categories";
-import { requestFitAfterLayout } from "./canvas/fitSignal";
 import { useStore } from "./state/store";
 
 const CATS = Object.keys(CATEGORY_LABEL) as UiCategory[];
 
 export function Toolbar() {
-  const { fitView } = useReactFlow();
   const hidden = useStore((s) => s.hiddenCategories);
-  const { expandAll, collapseAll, toggleCategory } = useStore.getState();
+  const { expandAll, collapseAll, toggleCategory, requestFit } = useStore.getState();
   return (
     <div className="toolbar">
-      <button
-        type="button"
-        onClick={() => {
-          requestFitAfterLayout();
-          expandAll();
-        }}
-      >
-        Expand all
-      </button>
+      <button type="button" onClick={expandAll}>Expand all</button>
       <button type="button" onClick={collapseAll}>Collapse all</button>
-      <button type="button" onClick={() => void fitView({ duration: 400 })}>Fit</button>
+      <button type="button" onClick={requestFit}>Fit</button>
       <span className="sep" />
       {CATS.map((c) => (
         <button

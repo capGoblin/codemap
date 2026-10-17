@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { FlowCanvas, type LayoutFn } from "../src/canvas/FlowCanvas";
@@ -7,6 +7,12 @@ import { useStore } from "../src/state/store";
 import type { Effect, TraceGraph } from "../src/api/types";
 import { fixtureGraph } from "../src/dev/fixture";
 import { node } from "./helpers";
+
+const fitView = vi.fn();
+vi.mock("@xyflow/react", async (orig) => {
+  const mod = await orig<typeof import("@xyflow/react")>();
+  return { ...mod, useReactFlow: () => ({ ...mod.useReactFlow(), fitView }) };
+});
 
 beforeAll(() => {
   class RO {
@@ -33,7 +39,7 @@ const eff = (category: Effect["category"], target: string): Effect => ({
 function setup(graph: TraceGraph, open: string[] = []) {
   useStore.setState({
     graph, openIds: new Set(open), selectedNodeId: null, selectedTarget: null,
-    hiddenCategories: new Set(), focusNodeId: null, expandErrors: new Map(),
+    hiddenCategories: new Set(), cameraRequest: null, expandErrors: new Map(),
   });
   return render(
     <ReactFlowProvider>
@@ -101,5 +107,18 @@ describe("canvas", () => {
   it("opens steps inside a phase", async () => {
     setup(fixtureGraph, ["p1"]);
     expect(await screen.findByTestId("node-p1.s1")).toBeTruthy();
+  });
+
+  it("test_refetch_does_not_move_camera", async () => {
+    fitView.mockClear();
+    setup(fixtureGraph);
+    await screen.findByTestId("node-p1");
+    await waitFor(() => expect(fitView).toHaveBeenCalledTimes(1)); // first layout fits all
+    fireEvent.click(screen.getByTestId("node-p1"));
+    await waitFor(() => expect(fitView).toHaveBeenCalledTimes(2));
+    expect(fitView.mock.calls[1]![0]).toMatchObject({ nodes: [{ id: "p1" }] });
+    act(() => useStore.getState().setGraph({ ...fixtureGraph }));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fitView).toHaveBeenCalledTimes(2);
   });
 });

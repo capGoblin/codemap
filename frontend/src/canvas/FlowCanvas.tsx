@@ -9,11 +9,10 @@ import { buildVisible, type VisibleEdge, type VisibleNode } from "../graph/visib
 import { layoutInWorker } from "../graph/layout.worker";
 import type { Box } from "../graph/layout";
 import { nodesTouching } from "../effects/categories";
-import { useStore } from "../state/store";
+import { useStore, type CameraRequest } from "../state/store";
 import { PhaseNode } from "./PhaseNode";
 import { StepNode } from "./StepNode";
 import { edgeTypes } from "./edges";
-import { takeFitRequest } from "./fitSignal";
 
 const nodeTypes = { phase: PhaseNode, step: StepNode };
 
@@ -27,7 +26,8 @@ export function FlowCanvas({ layoutFn = layoutInWorker }: { layoutFn?: LayoutFn 
   const { fitView } = useReactFlow();
   const [laid, setLaid] = useState<{ v: V; boxes: Map<string, Box> } | null>(null);
   const [layoutError, setLayoutError] = useState<string | null>(null);
-  const fitPending = useRef<"focus" | "all" | null>(null);
+  const firstLayout = useRef(true); // the first layout fits everything
+  const fitPending = useRef<CameraRequest>(null);
 
   useEffect(() => {
     if (!graph) return;
@@ -36,8 +36,9 @@ export function FlowCanvas({ layoutFn = layoutInWorker }: { layoutFn?: LayoutFn 
     layoutFn(v).then(
       (boxes) => {
         if (stale) return;
-        const focus = useStore.getState().focusNodeId;
-        fitPending.current = takeFitRequest() ? "all" : focus ? "focus" : null;
+        const req = useStore.getState().takeCameraRequest();
+        fitPending.current = req ?? (firstLayout.current ? { kind: "all" } : null);
+        firstLayout.current = false;
         setLayoutError(null);
         setLaid({ v, boxes });
       },
@@ -80,28 +81,18 @@ export function FlowCanvas({ layoutFn = layoutInWorker }: { layoutFn?: LayoutFn 
   }, [laid, touching]);
 
   useEffect(() => {
-    const mode = fitPending.current;
-    if (!mode || nodes.length === 0) return;
+    const req = fitPending.current;
+    if (!req || nodes.length === 0) return;
     fitPending.current = null;
-    const focus = useStore.getState().focusNodeId;
     const t = setTimeout(() => {
-      if (mode === "focus" && focus) {
-        void fitView({ nodes: [{ id: focus }], padding: 0.25, duration: 400 });
+      if (req.kind === "focus") {
+        void fitView({ nodes: [{ id: req.id }], padding: 0.25, duration: 400 });
       } else {
         void fitView({ duration: 400 });
       }
     }, 0);
     return () => clearTimeout(t);
   }, [nodes, fitView]);
-
-  // First layout: show everything.
-  const first = useRef(true);
-  useEffect(() => {
-    if (laid && first.current) {
-      first.current = false;
-      fitPending.current ??= "all";
-    }
-  }, [laid]);
 
   const { selectNode, toggleOpen } = useStore.getState();
   return (

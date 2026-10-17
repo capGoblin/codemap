@@ -15,7 +15,7 @@ describe("store", () => {
   beforeEach(() => {
     useStore.setState({
       graph: null, openIds: new Set(), selectedNodeId: null, selectedTarget: null,
-      hiddenCategories: new Set(), focusNodeId: null, expandErrors: new Map(),
+      hiddenCategories: new Set(), cameraRequest: null, expandErrors: new Map(),
     });
     useStore.getState().setGraph(g);
   });
@@ -23,18 +23,24 @@ describe("store", () => {
   it("toggleOpen opens, sets focus, and closes again", () => {
     useStore.getState().toggleOpen("P1");
     expect(useStore.getState().openIds.has("P1")).toBe(true);
-    expect(useStore.getState().focusNodeId).toBe("P1");
+    expect(useStore.getState().cameraRequest).toEqual({ kind: "focus", id: "P1" });
     useStore.getState().toggleOpen("P1");
     expect(useStore.getState().openIds.has("P1")).toBe(false);
   });
 
-  it("expandAll opens every phase and clears focus; collapseAll closes", () => {
+  it("expandAll opens every phase and requests fit-all; collapseAll closes", () => {
     useStore.getState().toggleOpen("P1");
     useStore.getState().expandAll();
     expect([...useStore.getState().openIds].sort()).toEqual(["P1", "P2"]);
-    expect(useStore.getState().focusNodeId).toBeNull();
+    expect(useStore.getState().cameraRequest).toEqual({ kind: "all" });
     useStore.getState().collapseAll();
     expect(useStore.getState().openIds.size).toBe(0);
+  });
+
+  it("takeCameraRequest returns the request once and clears it; requestFit asks for all", () => {
+    useStore.getState().requestFit();
+    expect(useStore.getState().takeCameraRequest()).toEqual({ kind: "all" });
+    expect(useStore.getState().takeCameraRequest()).toBeNull();
   });
 
   it("selection, category toggle, and expand errors", () => {
