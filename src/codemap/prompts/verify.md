@@ -14,9 +14,11 @@ Use `read_file` (short ranges), `search`, `find_definition` and `outline`. Searc
 
 # Verdict (submit)
 
-- `confirmed`: you found the full chain from caller to callee. Give the anchors you used as evidence.
+Fields: `verdict`, `evidence`, `evidence_anchors`, `suggested_callee`.
+
+- `confirmed`: you found the full chain from caller to callee. Put the anchors you used in `evidence_anchors`.
 - `unsure`: you could not prove it or disprove it. Say what is missing.
-- `rejected`: you found concrete evidence that the claim is wrong. Quote it with file:line. Example: the string `parse_document` is registered to `parse_v2` at `worker.py:40`, not to the claimed callee. Give `suggested_callee` when you found the right one.
+- `rejected`: you found concrete evidence that the claim is wrong. Quote it in `evidence` with file:line, and put the same anchors in `evidence_anchors`. A rejection with no valid `evidence_anchors` counts as `unsure`. Example: the string `parse_document` is registered to `parse_v2` at `worker.py:40`, not to the claimed callee. Give `suggested_callee` when you found the right one.
 
 # Rules
 
