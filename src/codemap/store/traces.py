@@ -137,6 +137,13 @@ class TraceStore:
             )
 
     @_locked
+    def add_hop(self, trace_id: str, hop: Hop) -> None:
+        with self._conn:
+            self._conn.execute(
+                "INSERT INTO hops (trace_id, hop) VALUES (?, ?)", (trace_id, hop.model_dump_json())
+            )
+
+    @_locked
     def get_hops(self, trace_id: str) -> list[Hop]:
         rows = self._conn.execute(
             "SELECT hop FROM hops WHERE trace_id = ? ORDER BY seq", (trace_id,)
@@ -150,6 +157,14 @@ class TraceStore:
             self._conn.executemany(
                 "INSERT INTO walk_effects (trace_id, effect) VALUES (?, ?)",
                 [(trace_id, e.model_dump_json()) for e in effects],
+            )
+
+    @_locked
+    def add_walk_effect(self, trace_id: str, effect: Effect) -> None:
+        with self._conn:
+            self._conn.execute(
+                "INSERT INTO walk_effects (trace_id, effect) VALUES (?, ?)",
+                (trace_id, effect.model_dump_json()),
             )
 
     @_locked

@@ -48,8 +48,6 @@ def run_trace(ctx: TraceContext, question: str, entry: Anchor, mode: TraceMode) 
 
     _emit(ctx, "step_started", "walk")
     walk = walk_path(ctx, entry, question)
-    store.save_hops(tid, walk.hops)
-    store.save_walk_effects(tid, walk.effects)
     if walk.partial_reason:
         reasons.append(f"walk: {walk.partial_reason}")
 
