@@ -15,6 +15,7 @@ class ExpectedEffect(BaseModel):
 
 class ExpectedNode(BaseModel):
     title: str
+    summary: str = ""
     spans: list[Anchor]
     steps: list["ExpectedNode"] = Field(default_factory=list)
     note: str = ""

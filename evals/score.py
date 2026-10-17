@@ -16,6 +16,11 @@ class Score:
     effect_recall: float
     effect_extra: int
     status: str
+    depth_recall: float = 1.0
+    max_phases_ok: bool = True
+    titles_ok: bool = True
+    summaries_ok: bool = True
+    plumbing_phase_titles: int = 0
 
 
 def _lines(anchors: list[Anchor] | tuple[Anchor, ...]) -> Lines:
@@ -59,6 +64,39 @@ def _all_spans(nodes: list[ExpectedNode]) -> Lines:
     return out
 
 
+PLUMBING_WORDS = (
+    "idempotency",
+    "outbox",
+    "dispatch",
+    "workflow run",
+    "run workflow",
+    "bookkeeping",
+    "status",
+)
+MAX_PHASES = 7
+
+
+def _step_scores(
+    nodes: list[Node], actual: list[Node], expected: list[ExpectedNode]
+) -> list[float]:
+    """Agreement of the children of every matched pair, at every level below."""
+    out: list[float] = []
+    for i, j in _match([_lines(n.anchors) for n in actual], [_lines(e.spans) for e in expected]):
+        kids = [n for n in nodes if n.parent_id == actual[i].id]
+        if kids or expected[j].steps:
+            out.append(
+                _agreement(
+                    [_lines(k.anchors) for k in kids], [_lines(e.spans) for e in expected[j].steps]
+                )
+            )
+            out += _step_scores(nodes, kids, expected[j].steps)
+    return out
+
+
+def _level2(nodes: list[ExpectedNode]) -> list[ExpectedNode]:
+    return [g for n in nodes for c in n.steps for g in c.steps]
+
+
 def score(graph: TraceGraph, expected: ExpectedTrace) -> Score:
     nodes = sorted(graph.nodes, key=lambda n: n.order)
     phases = [n for n in nodes if n.level == 0]
@@ -68,16 +106,12 @@ def score(graph: TraceGraph, expected: ExpectedTrace) -> Score:
     expected_all = _all_spans(expected.phases)
     off_path = sum(1 for n in nodes if not (_lines(n.anchors) & expected_all))
 
-    step_scores = []
-    for i, j in _match(act_lines, exp_lines):
-        steps: list[Node] = [n for n in nodes if n.parent_id == phases[i].id]
-        step_scores.append(
-            _agreement(
-                [_lines(s.anchors) for s in steps],
-                [_lines(s.spans) for s in expected.phases[j].steps],
-            )
-        )
+    step_scores = _step_scores(nodes, phases, expected.phases)
     step_agreement = sum(step_scores) / len(step_scores) if step_scores else 0.0
+
+    deep = _lines([a for n in nodes if n.level >= 1 for a in n.anchors])
+    wanted = _level2(expected.phases)
+    depth_recall = sum(1 for e in wanted if _lines(e.spans) & deep) / len(wanted) if wanted else 1.0
 
     actual_fx = {(e.category, e.target, e.op) for n in nodes for e in n.effects}
     want_fx = {(e.category, e.target, e.op) for e in expected.effects}
@@ -90,6 +124,13 @@ def score(graph: TraceGraph, expected: ExpectedTrace) -> Score:
         effect_recall=recall,
         effect_extra=len(actual_fx - want_fx),
         status=graph.trace.status,
+        depth_recall=depth_recall,
+        max_phases_ok=len(phases) <= MAX_PHASES,
+        titles_ok=all(len(n.title.split()) <= 4 for n in nodes),
+        summaries_ok=all(0 < len(n.summary.split()) <= 14 for n in nodes),
+        plumbing_phase_titles=sum(
+            1 for p in phases if any(w in p.title.lower() for w in PLUMBING_WORDS)
+        ),
     )
 
 
@@ -97,5 +138,7 @@ def format_score(s: Score) -> str:
     return (
         f"| {s.status} | off_path={s.off_path_nodes} | phase={s.phase_agreement:.2f} "
         f"| step={s.step_agreement:.2f} | effect_recall={s.effect_recall:.2f} "
-        f"| effect_extra={s.effect_extra} |"
+        f"| effect_extra={s.effect_extra} | depth_recall={s.depth_recall:.2f} "
+        f"| max_phases_ok={s.max_phases_ok} | titles_ok={s.titles_ok} "
+        f"| summaries_ok={s.summaries_ok} | plumbing_titles={s.plumbing_phase_titles} |"
     )
