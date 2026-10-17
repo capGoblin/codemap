@@ -84,6 +84,10 @@ DEV_PORT = 8765
 
 
 @app.command("serve-dev", hidden=True)
-def serve_dev_cmd(ctx: typer.Context) -> None:
-    """Serve the API on a fixed port for the frontend dev server."""
-    serve_dev(_service(ctx, load_settings()), DEV_PORT)
+def serve_dev_cmd(
+    ctx: typer.Context,
+    port: Annotated[int, typer.Option(help="Port to listen on.")] = DEV_PORT,
+    static: Annotated[Path | None, typer.Option(help="Built frontend to serve.")] = None,
+) -> None:
+    """Serve the API for the frontend dev server, or the built frontend with --static."""
+    serve_dev(_service(ctx, load_settings()), port, static)

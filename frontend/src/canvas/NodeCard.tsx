@@ -3,6 +3,7 @@ import type { VisibleNode } from "../graph/visible";
 import { chipsFor } from "../effects/categories";
 import { EffectChip } from "../effects/EffectChip";
 import { useStore } from "../state/store";
+import { expandPhase } from "../state/expand";
 
 export type CardData = { vn: VisibleNode; faded: boolean; [k: string]: unknown };
 
@@ -15,6 +16,9 @@ export function NodeCard({ data, caret }: { data: CardData; caret?: string }) {
   const { vn, faded } = data;
   const hidden = useStore((s) => s.hiddenCategories);
   const error = useStore((s) => s.expandErrors.get(vn.id));
+  const expanding = useStore((s) => s.expanding.has(vn.id));
+  const eager = useStore((s) => s.graph?.trace.mode !== "lazy");
+  const hasChildren = useStore((s) => s.graph?.nodes.some((x) => x.parent_id === vn.id) ?? false);
   const n = vn.node;
   const { shown, more } = chipsFor(n.effects, hidden);
   return (
@@ -38,7 +42,22 @@ export function NodeCard({ data, caret }: { data: CardData; caret?: string }) {
         {more > 0 && <span className="more">+{more}</span>}
       </div>
       {n.stale && <div className="stale">code changed</div>}
-      {error && <div className="err">{error}</div>}
+      {expanding && <span className="spinner" role="status" aria-label="Expanding" />}
+      {error && !expanding && (
+        <div className="err">
+          {error}{" "}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              void expandPhase(vn.id);
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {vn.kind === "phase" && vn.open && eager && !hasChildren && <div className="empty">no steps</div>}
       <Handle type="source" position={Position.Right} />
     </div>
   );

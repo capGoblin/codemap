@@ -204,8 +204,11 @@ def test_open_with_id(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_serve_dev_uses_fixed_port(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     use_model(monkeypatch, RoutedModel())
-    calls: list[int] = []
-    monkeypatch.setattr(cli_main, "serve_dev", lambda service, port: calls.append(port))
+    calls: list[tuple[int, Path | None]] = []
+    monkeypatch.setattr(
+        cli_main, "serve_dev", lambda service, port, static=None: calls.append((port, static))
+    )
     assert run(repo, "serve-dev").exit_code == 0
-    assert calls == [8765]
+    assert run(repo, "serve-dev", "--port", "9000", "--static", "dist").exit_code == 0
+    assert calls == [(8765, None), (9000, Path("dist"))]
     assert "serve-dev" not in run(repo, "--help").output

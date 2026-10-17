@@ -7,6 +7,8 @@ import { DetailPanel } from "./panels/DetailPanel";
 import { EffectPanel } from "./panels/EffectPanel";
 import { EffectLane } from "./effects/EffectLane";
 import { Toolbar } from "./Toolbar";
+import { StatusBanner } from "./StatusBanner";
+import { useTraceEvents } from "./api/useTraceEvents";
 import { useStore } from "./state/store";
 import { fixtureGraph } from "./dev/fixture";
 
@@ -49,6 +51,23 @@ export function App({ graph, layoutFn, detailLoader }: Props) {
   const traceId = traceIdFromPath(window.location.pathname);
   const [error, setError] = useState<string | null>(null);
   const useApi = !graph && traceId !== null;
+  const status = useStore((s) => s.graph?.trace.status ?? null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+
+  useTraceEvents(
+    useApi ? traceId : null,
+    (e) => {
+      setMessage(e.message);
+      if (e.kind === "warning") setWarning(e.message);
+      if (e.kind === "phase_split" || e.kind === "finished") {
+        getGraph(traceId!, 1).then(setGraph, (err: unknown) =>
+          setError(`Could not refresh trace ${traceId}: ${errorText(err)}`),
+        );
+      }
+    },
+    status === "running" || status === null,
+  );
   const showList = !graph && traceId === null && !import.meta.env.DEV;
 
   useEffect(() => {
@@ -72,6 +91,7 @@ export function App({ graph, layoutFn, detailLoader }: Props) {
     <ReactFlowProvider>
       <div className="app">
         {error && <div className="banner-err">{error}</div>}
+        {status && <StatusBanner status={status} message={message} warning={warning} />}
         <Toolbar />
         <div className="main">
           <div className="canvas">

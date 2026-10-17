@@ -36,6 +36,6 @@ def serve_in_background(service: Service, static_dir: Path | None = None) -> str
     raise RuntimeError("codemap server did not start within 5 s")
 
 
-def serve_dev(service: Service, port: int) -> None:
-    """Serve the API only, in the foreground, for the Vite dev server to proxy to."""
-    uvicorn.run(create_app(service, None), host=_HOST, port=port, log_level="warning")
+def serve_dev(service: Service, port: int, static_dir: Path | None = None) -> None:
+    """Serve in the foreground. Without `static_dir`, serve the API only for the Vite proxy."""
+    uvicorn.run(create_app(service, static_dir), host=_HOST, port=port, log_level="warning")
