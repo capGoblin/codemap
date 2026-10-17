@@ -10,7 +10,7 @@ from codemap.agents.loop import run_tool_loop
 from codemap.agents.model import ModelError
 from codemap.domain.models import Anchor, Hop, VerifierResult
 from codemap.pipeline.context import TraceContext, prompt, read_tools
-from codemap.repo.anchors import check_anchor
+from codemap.repo.anchors import check_anchor, with_hash
 
 
 class VerdictSubmit(BaseModel):
@@ -20,9 +20,21 @@ class VerdictSubmit(BaseModel):
     suggested_callee: Anchor | None = None
 
 
+def _identity(anchor: Anchor | None) -> str:
+    if anchor is None:
+        return "-"
+    return (
+        f"{anchor.file}:{anchor.start_line}:{anchor.end_line}:{anchor.symbol}:{anchor.content_hash}"
+    )
+
+
 def verdict_key(hop: Hop) -> str:
-    raw = hop.caller.content_hash + hop.callee.content_hash + hop.kind
+    raw = "|".join([_identity(hop.caller), _identity(hop.callee), hop.kind, _identity(hop.wiring)])
     return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _hashed(ctx: TraceContext, anchor: Anchor) -> Anchor:
+    return anchor if anchor.content_hash else with_hash(ctx.tools, anchor)
 
 
 def _fmt(anchor: Anchor) -> str:
@@ -54,6 +66,9 @@ def _apply_rule(ctx: TraceContext, sub: VerdictSubmit) -> VerifierResult:
 
 
 def verify_hop(ctx: TraceContext, hop: Hop) -> VerifierResult:
+    hop = hop.model_copy(
+        update={"caller": _hashed(ctx, hop.caller), "callee": _hashed(ctx, hop.callee)}
+    )
     key = verdict_key(hop)
     cached = ctx.verdicts.get(key)
     if cached is not None:

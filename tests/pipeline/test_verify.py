@@ -109,3 +109,25 @@ def test_prompt_names_submit_fields(name: str) -> None:
     from codemap.pipeline.context import prompt
 
     assert name in prompt("verify")
+
+
+def test_distinct_unhashed_hops_do_not_share_cache(tmp_path: Path) -> None:
+    model = ScriptedModel(
+        [
+            submit(verdict="confirmed", evidence="ok"),
+            submit(verdict="unsure", evidence="other"),
+        ]
+    )
+    ctx = make_ctx(tmp_path, model)
+    first = make_hop(ctx)
+    plain = first.model_copy(
+        update={
+            "caller": first.caller.model_copy(update={"content_hash": ""}),
+            "callee": first.callee.model_copy(update={"content_hash": ""}),
+        }
+    )
+    other_callee = Anchor(file="app/worker.py", start_line=5, end_line=6, symbol="ocr")
+    second = plain.model_copy(update={"id": "h2", "callee": other_callee})
+    assert verify_hop(ctx, plain).verdict == "confirmed"
+    assert verify_hop(ctx, second).verdict == "unsure"
+    assert len(model.requests) == 2
