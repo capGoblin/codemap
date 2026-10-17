@@ -1,11 +1,25 @@
 """SQLite connection and migrations. Use one connection per thread."""
 
 import sqlite3
+import threading
 from importlib import resources
 from pathlib import Path
 
 SCHEMA_VERSION = 1
 _MIGRATIONS = "codemap.store.migrations"
+
+
+class _Connection(sqlite3.Connection):
+    """A connection that carries the lock its users share."""
+
+    lock: threading.RLock
+
+
+def conn_lock(conn: sqlite3.Connection) -> threading.RLock:
+    """One lock per connection. Caches and the trace store share it, so threads take turns."""
+    if not isinstance(conn, _Connection):
+        raise TypeError("connection was not made by open_db")
+    return conn.lock
 
 
 class SchemaTooNewError(Exception):
@@ -14,7 +28,8 @@ class SchemaTooNewError(Exception):
 
 def open_db(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, check_same_thread=False)
+    conn = sqlite3.connect(path, check_same_thread=False, factory=_Connection)
+    conn.lock = threading.RLock()
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA journal_mode=WAL")

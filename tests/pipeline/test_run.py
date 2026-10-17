@@ -1,4 +1,5 @@
 import shutil
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -248,3 +249,34 @@ def test_run_trace_failed_when_nothing_survives(tmp_path: Path) -> None:
     trace = ctx.store.get_trace("t1")
     assert trace is not None and trace.status == "failed"
     assert events[-1].kind == "finished" and events[-1].data == {"status": "failed"}
+
+
+def test_run_trace_eager_concurrency_4(tmp_path: Path) -> None:
+    anchors = [UPLOAD, ACCEPT, ENQUEUE, PARSE, STORE]
+    names = ["p0", "p1", "p2", "p3", "p4"]
+    phases = submit(phases=[phase_draft(i, i, n) for i, n in enumerate(names)])
+    steps = {
+        n: submit(steps=[step_draft(f"s-{n}", [a])]) for n, a in zip(names, anchors, strict=True)
+    }
+    walk = [
+        hop(UPLOAD, ACCEPT, "h1"),
+        hop(UPLOAD, ENQUEUE, "h2"),
+        hop(ENQUEUE, PARSE, "h3", kind="async", hop_type="indirect"),
+        resp(tool_use("submit", {"verdict": "confirmed", "evidence": "HANDLERS"}, "v")),
+        hop(PARSE, STORE, "h4"),
+        submit(done=True),
+    ]
+
+    class Locked(RoutedModel):
+        lock = threading.Lock()
+
+        def respond(self, **kw: Any) -> Any:
+            with self.lock:
+                return super().respond(**kw)
+
+    ctx, _ = setup(tmp_path, Locked(walk, phases, steps))
+    assert ctx.settings.split_concurrency == 4
+    assert run_trace(ctx, "q", ENTRY, "eager") == "complete"
+    graph = ctx.store.get_graph("t1", 1)
+    assert len([n for n in graph.nodes if n.level == 0]) == 5
+    assert len([n for n in graph.nodes if n.level == 1]) == 5

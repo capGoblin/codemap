@@ -1,7 +1,9 @@
 """Trace, graph, hop and event storage."""
 
+import functools
 import sqlite3
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
+from typing import Any
 
 from pydantic import TypeAdapter
 
@@ -16,6 +18,7 @@ from codemap.domain.models import (
     TraceGraph,
     TraceStatus,
 )
+from codemap.store.db import conn_lock
 
 _ANCHORS = TypeAdapter(tuple[Anchor, ...])
 _EFFECTS = TypeAdapter(tuple[Effect, ...])
@@ -68,10 +71,23 @@ def _node_values(trace_id: str, n: Node) -> tuple[object, ...]:
     )  # fmt: skip
 
 
+def _locked[F: Callable[..., Any]](fn: F) -> F:
+    """Hold the connection lock for the whole call, so threads share one connection safely."""
+
+    @functools.wraps(fn)
+    def wrapper(self: "TraceStore", *args: Any, **kwargs: Any) -> Any:
+        with self._lock:
+            return fn(self, *args, **kwargs)
+
+    return wrapper  # type: ignore[return-value]
+
+
 class TraceStore:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._conn = conn
+        self._lock = conn_lock(conn)
 
+    @_locked
     def create_trace(self, trace: Trace) -> None:
         with self._conn:
             self._conn.execute(
@@ -86,10 +102,12 @@ class TraceStore:
                 ),
             )  # fmt: skip
 
+    @_locked
     def set_status(self, trace_id: str, status: TraceStatus) -> None:
         with self._conn:
             self._conn.execute("UPDATE traces SET status = ? WHERE id = ?", (status, trace_id))
 
+    @_locked
     def set_totals(
         self, trace_id: str, input_tokens: int, output_tokens: int, cost_usd: float
     ) -> None:
@@ -99,14 +117,17 @@ class TraceStore:
                 (input_tokens, output_tokens, cost_usd, trace_id),
             )
 
+    @_locked
     def get_trace(self, trace_id: str) -> Trace | None:
         row = self._conn.execute("SELECT * FROM traces WHERE id = ?", (trace_id,)).fetchone()
         return _trace_from(row) if row else None
 
+    @_locked
     def list_traces(self) -> list[Trace]:
         rows = self._conn.execute("SELECT * FROM traces ORDER BY created_at DESC, rowid DESC")
         return [_trace_from(r) for r in rows]
 
+    @_locked
     def save_hops(self, trace_id: str, hops: Iterable[Hop]) -> None:
         with self._conn:
             self._conn.execute("DELETE FROM hops WHERE trace_id = ?", (trace_id,))
@@ -115,12 +136,14 @@ class TraceStore:
                 [(trace_id, h.model_dump_json()) for h in hops],
             )
 
+    @_locked
     def get_hops(self, trace_id: str) -> list[Hop]:
         rows = self._conn.execute(
             "SELECT hop FROM hops WHERE trace_id = ? ORDER BY seq", (trace_id,)
         )
         return [Hop.model_validate_json(r[0]) for r in rows]
 
+    @_locked
     def save_walk_effects(self, trace_id: str, effects: Iterable[Effect]) -> None:
         with self._conn:
             self._conn.execute("DELETE FROM walk_effects WHERE trace_id = ?", (trace_id,))
@@ -129,12 +152,14 @@ class TraceStore:
                 [(trace_id, e.model_dump_json()) for e in effects],
             )
 
+    @_locked
     def get_walk_effects(self, trace_id: str) -> list[Effect]:
         rows = self._conn.execute(
             "SELECT effect FROM walk_effects WHERE trace_id = ? ORDER BY seq", (trace_id,)
         )
         return [Effect.model_validate_json(r[0]) for r in rows]
 
+    @_locked
     def get_node(self, trace_id: str, node_id: str) -> Node | None:
         row = self._conn.execute(
             "SELECT * FROM nodes WHERE trace_id = ? AND id = ?", (trace_id, node_id)
@@ -154,10 +179,12 @@ class TraceStore:
             [(trace_id, e.source_id, e.target_id, e.kind) for e in edges],
         )
 
+    @_locked
     def save_nodes(self, trace_id: str, nodes: Sequence[Node], edges: Sequence[Edge]) -> None:
         with self._conn:
             self._insert(trace_id, nodes, edges)
 
+    @_locked
     def replace_children(
         self, trace_id: str, parent_id: str, nodes: Sequence[Node], edges: Sequence[Edge]
     ) -> None:
@@ -175,6 +202,7 @@ class TraceStore:
             )
             self._insert(trace_id, nodes, edges)
 
+    @_locked
     def get_graph(self, trace_id: str, depth: int) -> TraceGraph:
         trace = self.get_trace(trace_id)
         if trace is None:
@@ -197,6 +225,7 @@ class TraceStore:
         )
         return TraceGraph(trace=trace, nodes=nodes, edges=edges)
 
+    @_locked
     def set_stale(self, trace_id: str, node_ids: set[str]) -> None:
         with self._conn:
             self._conn.executemany(
@@ -204,6 +233,7 @@ class TraceStore:
                 [(trace_id, i) for i in node_ids],
             )
 
+    @_locked
     def add_event(self, event: Event) -> int:
         with self._conn:
             cur = self._conn.execute(
@@ -212,6 +242,7 @@ class TraceStore:
             )
         return int(cur.lastrowid or 0)
 
+    @_locked
     def events_after(self, trace_id: str, after_id: int) -> list[tuple[int, Event]]:
         rows = self._conn.execute(
             "SELECT id, event FROM events WHERE trace_id = ? AND id > ? ORDER BY id",
@@ -219,6 +250,7 @@ class TraceStore:
         )
         return [(r[0], Event.model_validate_json(r[1])) for r in rows]
 
+    @_locked
     def mark_running_partial(self) -> int:
         with self._conn:
             cur = self._conn.execute(
