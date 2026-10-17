@@ -11,6 +11,7 @@ from codemap.agents.model import ChatModel
 
 SUBMIT = "submit"
 NUDGE = "Call a tool, or call submit with your answer."
+TRIMMED = "[older tool output trimmed]"
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,7 @@ def run_tool_loop[T: BaseModel](
     budget: Budget,
     max_turns: int = 60,
     max_tokens: int = 4096,
+    keep_recent_turns: int | None = None,
 ) -> T:
     handlers = {t.name: t.handler for t in tools}
     specs = [
@@ -48,7 +50,10 @@ def run_tool_loop[T: BaseModel](
     for _ in range(max_turns):
         budget.check()
         resp = model.respond(
-            system=system, messages=list(messages), tools=specs, max_tokens=max_tokens
+            system=system,
+            messages=_trimmed(messages, keep_recent_turns),
+            tools=specs,
+            max_tokens=max_tokens,
         )
         budget.charge(resp)
         messages.append({"role": "assistant", "content": resp.content})
@@ -71,6 +76,25 @@ def run_tool_loop[T: BaseModel](
             return answer
         messages.append({"role": "user", "content": results})
     raise LimitReached("max_turns")
+
+
+def _trimmed(messages: list[dict[str, Any]], keep: int | None) -> list[dict[str, Any]]:
+    """Copy of `messages` with tool results older than the last `keep` assistant turns stubbed."""
+    if keep is None:
+        return list(messages)
+    turns = [i for i, m in enumerate(messages) if m["role"] == "assistant"]
+    if len(turns) <= keep:
+        return list(messages)
+    cutoff = turns[-keep] if keep > 0 else len(messages)
+    return [_stub_results(m) if i < cutoff else m for i, m in enumerate(messages)]
+
+
+def _stub_results(message: dict[str, Any]) -> dict[str, Any]:
+    content = message["content"]
+    if message["role"] != "user" or not isinstance(content, list):
+        return message
+    stubbed = [{**b, "content": TRIMMED} if b.get("type") == "tool_result" else b for b in content]
+    return {**message, "content": stubbed}
 
 
 def _submit[T: BaseModel](schema: type[T], raw: dict[str, Any]) -> tuple[str, T | None]:

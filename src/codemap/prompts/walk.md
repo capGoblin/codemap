@@ -9,7 +9,7 @@ You record what runs. You do not explain or summarise.
 - `search` to resolve names, strings, registrations and handlers.
 - `record_hop` for every call from one function to another.
 - `record_effect` for every side effect.
-- `submit` when the flow ends or the hop limit is hit.
+- `submit` when the flow ends or the hop limit is hit. Set `done` to true if the flow ended. Set it to false if you stopped early, and say why in `notes`.
 
 # Hops
 
@@ -22,7 +22,7 @@ You record what runs. You do not explain or summarise.
 
 # Effects
 
-Record each side effect with the anchor of the line that does it: DB table and fields, object store bucket and key pattern, queue or topic, cache key, file path, workflow name, external HTTP host. Give the operation: read, write, delete, publish, consume or call.
+Record each side effect with the anchor of the line that does it: DB table and fields, object store bucket and key pattern, queue or topic, cache key, file path, workflow name, external HTTP host. Fields: `category`, `target`, `op` (read, write, delete, publish, consume or call), `fields` (columns or keys touched, if known) and `anchor`.
 
 # Rules
 
