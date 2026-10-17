@@ -1,1 +1,7 @@
+.venv/
+__pycache__/
+.codemap/
+src/codemap/server/static/
+node_modules/
+dist/
 .superpowers/

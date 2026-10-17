@@ -1,0 +1,50 @@
+[project]
+name = "codemap"
+version = "0.1.0"
+description = "Trace one system in a codebase into a zoomable graph."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "anthropic>=0.40",
+    "typer>=0.12",
+    "rich>=13.7",
+    "pathspec>=0.12",
+    "tree-sitter-language-pack>=0.2",
+    "platformdirs>=4.2",
+]
+
+[project.scripts]
+codemap = "codemap.cli.main:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "import-linter>=2.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/codemap"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM"]
+
+[tool.mypy]
+strict = true
+mypy_path = "src"
+packages = ["codemap"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -1,0 +1,20 @@
+[importlinter]
+root_package = codemap
+
+[importlinter:contract:layers]
+name = layers
+type = layers
+layers =
+    codemap.cli
+    codemap.service
+    codemap.pipeline
+    codemap.store | codemap.repo | codemap.agents
+    codemap.domain
+
+[importlinter:contract:agents-independent]
+name = agents must not import domain
+type = forbidden
+source_modules =
+    codemap.agents
+forbidden_modules =
+    codemap.domain
