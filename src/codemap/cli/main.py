@@ -10,6 +10,7 @@ from codemap.cli import doctor as doctor_cmd
 from codemap.cli import open as open_cmd
 from codemap.cli import trace as trace_cmd
 from codemap.logs import setup_logging
+from codemap.server.run import serve_dev
 from codemap.service import Service
 from codemap.settings import Settings, load_settings
 
@@ -53,19 +54,21 @@ def trace(
     json: Annotated[
         bool, typer.Option("--json", help="Print only the graph JSON on stdout.")
     ] = False,
-    no_open: Annotated[bool, typer.Option("--no-open", help="Do not open the browser.")] = False,
+    no_open: Annotated[
+        bool, typer.Option("--no-open", help="Skip the browser and the server.")
+    ] = False,
 ) -> None:
     """Trace the system that QUESTION describes."""
     service = _service(ctx, load_settings())
-    trace_cmd.run_trace(service, question, lazy, pick, json)
+    trace_cmd.run_trace(service, question, lazy, pick, json, not no_open)
 
 
 @app.command()
 def open(  # noqa: A001
     ctx: typer.Context, trace_id: Annotated[str | None, typer.Argument()] = None
 ) -> None:
-    """List saved traces for the repo."""
-    raise typer.Exit(open_cmd.list_traces(_service(ctx, load_settings()), trace_id))
+    """Open a saved trace in the browser."""
+    raise typer.Exit(open_cmd.open_trace(_service(ctx, load_settings()), trace_id))
 
 
 @app.command()
@@ -75,3 +78,12 @@ def doctor(ctx: typer.Context) -> None:
     repo, verbose = ctx.obj
     setup_logging(repo, verbose, settings.anthropic_auth_token.get_secret_value())
     raise typer.Exit(doctor_cmd.run_doctor(settings, lambda: make_service(repo, settings)))
+
+
+DEV_PORT = 8765
+
+
+@app.command("serve-dev", hidden=True)
+def serve_dev_cmd(ctx: typer.Context) -> None:
+    """Serve the API on a fixed port for the frontend dev server."""
+    serve_dev(_service(ctx, load_settings()), DEV_PORT)

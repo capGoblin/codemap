@@ -34,3 +34,8 @@ def serve_in_background(service: Service, static_dir: Path | None = None) -> str
             time.sleep(0.05)
     server.should_exit = True
     raise RuntimeError("codemap server did not start within 5 s")
+
+
+def serve_dev(service: Service, port: int) -> None:
+    """Serve the API only, in the foreground, for the Vite dev server to proxy to."""
+    uvicorn.run(create_app(service, None), host=_HOST, port=port, log_level="warning")

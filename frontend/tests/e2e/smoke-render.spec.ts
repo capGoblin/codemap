@@ -1,9 +1,21 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { fixtureDetailLoader, fixtureGraph } from "../../src/dev/fixture";
+
+// The preview server has no API, so answer the two calls the page makes from the fixture.
+async function openFixtureTrace(page: Page) {
+  const id = fixtureGraph.trace.id;
+  await page.route(`**/api/v1/traces/${id}?depth=1`, (r) => r.fulfill({ json: fixtureGraph }));
+  await page.route(`**/api/v1/traces/${id}/nodes/*/detail`, async (r) => {
+    const nodeId = decodeURIComponent(new URL(r.request().url()).pathname.split("/").at(-2)!);
+    await r.fulfill({ json: await fixtureDetailLoader(id, nodeId) });
+  });
+  await page.goto(`/traces/${id}`);
+}
 
 test("fixture graph renders, is fitted, and opens a phase with one click", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(String(e)));
-  await page.goto("/");
+  await openFixtureTrace(page);
   const nodes = page.locator(".react-flow__node");
   await expect(nodes).not.toHaveCount(0, { timeout: 5000 });
   expect(await nodes.count()).toBeGreaterThanOrEqual(3);
@@ -30,7 +42,7 @@ test("fixture graph renders, is fitted, and opens a phase with one click", async
 });
 
 test("clicking a step opens the detail panel; clicking a lane target fades others", async ({ page }) => {
-  await page.goto("/");
+  await openFixtureTrace(page);
   await expect(page.locator(".react-flow__node")).not.toHaveCount(0, { timeout: 5000 });
   await page.waitForTimeout(1000);
   await page.getByTestId("node-p2").locator(".card-title").click();
