@@ -99,11 +99,12 @@ def test_rollup_dedupes_in_order():
 
 def test_io_chain_warning():
     phase = node("Document ", "Result")
-    assert io_chain_warning(phase, [node("document", "x"), node("x", "result")]) is None
-    msg = io_chain_warning(phase, [node("other", "x"), node("x", "result")])
+    assert io_chain_warning(phase, [node("other words", "x"), node("x", "nope")]) is None
+    msg = io_chain_warning(phase, [node(" ", "x"), node("x", "result")])
     assert msg is not None and "input" in msg
-    msg = io_chain_warning(phase, [node("document", "x"), node("x", "nope")])
+    msg = io_chain_warning(phase, [node("document", "x"), node("x", "")])
     assert msg is not None and "output" in msg
+    assert io_chain_warning(node("", ""), [node("", ""), node("", "")]) is None
     assert io_chain_warning(phase, []) is None
 
 

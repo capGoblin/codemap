@@ -7,6 +7,7 @@ from codemap.agents.model import ModelError
 from codemap.domain.models import Anchor, Effect, Hop, Node
 from codemap.pipeline.context import TraceContext, build_context
 from codemap.pipeline.split import (
+    phase_code,
     phase_edges,
     side_nodes,
     split_phases,
@@ -155,8 +156,8 @@ def test_split_steps_drops_outside_anchor(tmp_path: Path) -> None:
     assert steps[1].effects == ()
     user = model.requests[0]["messages"][0]["content"]
     assert "0: app/api.py:5-8 upload" in user
-    names = {t["name"] for t in model.requests[0]["tools"]}
-    assert {"read_file", "outline", "submit"} <= names
+    assert [t["name"] for t in model.requests[0]["tools"]] == ["submit"]
+    assert "6: " in user and "accept_document(request.file)" in user
 
 
 def test_split_steps_limit_returns_reason(tmp_path: Path) -> None:
@@ -230,3 +231,56 @@ def test_side_nodes_attach_to_containing_node() -> None:
 def test_side_nodes_skip_hop_with_no_container() -> None:
     other = hop(a("app/unused.py", 1, 3, "legacy_upload"), a("app/x.py", 1, 1, "x"), "error")
     assert side_nodes([other], [node("p0", 0, 0, (UPLOAD,))]) == ([], [])
+
+
+def test_split_steps_sends_code_inline_and_gives_no_read_tools(tmp_path: Path) -> None:
+    model = ScriptedModel([submit(steps=[step_draft("Accept the file (upload)", [UPLOAD])])])
+    ctx = make_ctx(tmp_path, model)
+    steps, reason = split_steps(ctx, node("p0", 0, 0, (UPLOAD,)), [])
+    assert reason is None and len(steps) == 1
+    user = model.requests[0]["messages"][0]["content"]
+    assert "5: def upload(request):" in user
+    assert [t["name"] for t in model.requests[0]["tools"]] == ["submit"]
+
+
+def test_split_steps_stops_after_four_turns(tmp_path: Path) -> None:
+    chatter = resp({"type": "text", "text": "thinking"}, stop="end_turn")
+    model = ScriptedModel([chatter] * 6)
+    ctx = make_ctx(tmp_path, model)
+    steps, reason = split_steps(ctx, node("p0", 0, 0, (UPLOAD,)), [])
+    assert steps == [] and reason == "max_turns"
+    assert len(model.requests) == 4
+
+
+def test_phase_code_over_cap_sends_signatures_and_heads(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    body = "\n".join(f"    x{i} = {i}" for i in range(1000))
+    (repo / "big.py").write_text(f"def big():\n{body}\n")
+    ctx = build_context(repo, Settings(), "t1", model=ScriptedModel([]))
+    phase = node("p0", 0, 0, (a("big.py", 1, 1001, "big"),))
+    text = phase_code(ctx.tools, phase)
+    assert "1: def big():" in text and "40: " in text and "41: " not in text
+    assert "first 40 of 1001 lines" in text
+    assert "big.py:1-1001 function_definition big" in text
+
+
+def test_split_steps_rejects_bare_function_name_title(tmp_path: Path) -> None:
+    bare = submit(steps=[step_draft("upload", [UPLOAD])])
+    good = submit(steps=[step_draft("Accept the file (upload)", [UPLOAD])])
+    model = ScriptedModel([bare, good])
+    ctx = make_ctx(tmp_path, model)
+    steps, reason = split_steps(ctx, node("p0", 0, 0, (UPLOAD,)), [])
+    assert reason is None and [s.title for s in steps] == ["Accept the file (upload)"]
+    assert "only the function name" in str(model.requests[1]["messages"][-1]["content"])
+
+
+def test_split_phases_rejects_bare_function_name_title(tmp_path: Path) -> None:
+    bare = submit(phases=[phase_draft(0, 4, "upload")])
+    good = submit(phases=[phase_draft(0, 4, "Upload and parse (upload)")])
+    model = ScriptedModel([bare, good])
+    ctx = make_ctx(tmp_path, model)
+    phases, reason = split_phases(ctx, "q", POINTS, EFFECTS)
+    assert reason is None and phases[0].title == "Upload and parse (upload)"
+    err = str(model.requests[1]["messages"][-1]["content"])
+    assert "only the function name" in err and "Rule" in err

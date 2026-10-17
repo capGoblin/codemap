@@ -66,22 +66,18 @@ def rollup_effects(children: Sequence[Node]) -> tuple[Effect, ...]:
     return tuple(out)
 
 
-def _norm(text: str) -> str:
-    return text.strip().casefold()
-
-
 def io_chain_warning(phase: Node, steps: Sequence[Node]) -> str | None:
+    """Warn only when a step end has no input or output while the phase has one.
+
+    Free-text descriptions rarely match word for word, so wording is not compared.
+    """
     if not steps:
         return None
     problems = []
-    if _norm(steps[0].input) != _norm(phase.input):
-        problems.append(
-            f"first step input {steps[0].input!r} differs from phase input {phase.input!r}"
-        )
-    if _norm(steps[-1].output) != _norm(phase.output):
-        problems.append(
-            f"last step output {steps[-1].output!r} differs from phase output {phase.output!r}"
-        )
+    if phase.input.strip() and not steps[0].input.strip():
+        problems.append("first step has no input, but the phase has one")
+    if phase.output.strip() and not steps[-1].output.strip():
+        problems.append("last step has no output, but the phase has one")
     return "; ".join(problems) or None
 
 

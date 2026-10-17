@@ -81,7 +81,7 @@ def run_trace(ctx: TraceContext, question: str, entry: Anchor, mode: TraceMode) 
         points,
         {n.id for n in sides},
     )
-    for warning in report.warnings:
+    for warning in [*report.warnings, *report.drops]:
         _emit(ctx, "warning", warning)
 
     _emit(ctx, "step_started", "save")
@@ -134,7 +134,7 @@ def expand_phase(ctx: TraceContext, phase_id: str) -> list[Node]:
         points,
         side_ids,
     )
-    for warning in report.warnings:
+    for warning in [*report.warnings, *report.drops]:
         _emit(ctx, "warning", warning)
     children = [n for n in report.nodes if n.parent_id == phase.id]
     child_ids = {n.id for n in children}

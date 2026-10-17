@@ -14,7 +14,7 @@ For each phase give: title, does (1 to 3 sentences), first and last path index, 
 # Rules
 
 - Use only indexes and anchors from the given path. Never invent a file, line or symbol.
-- Titles use the code's own names (a workflow, a stage module, a function). No generic titles such as "process data" or "handle logic".
+- The title says what the stage does, in a few words, with the code's names. You may add the code name in parentheses, for example "Recall memories (gated_retrieve)" or "Log the exchange (log_chat)". Never use a bare function name as the title. Never use generic titles such as "process data" or "handle logic".
 - The output of one phase should match the input of the next, or boundary_reason must say why not.
 - Do not add a phase for code that is not on the path.
 - Prefer fewer, clear phases over many thin ones. A phase is one stage of work, not one function call.

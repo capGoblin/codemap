@@ -89,20 +89,55 @@ def test_validate_rollup_and_io_warning() -> None:
     nodes = [
         mk("p", (UPLOAD, ACCEPT), input="req", output="done", effects=(e1,)),
         mk("s1", (UPLOAD,), level=1, parent="p", order=0, input="req", output="x", effects=(e1,)),
-        mk("s2", (ACCEPT,), level=1, parent="p", order=1, input="x", output="other", effects=(e2,)),
+        mk("s2", (ACCEPT,), level=1, parent="p", order=1, input="x", output="", effects=(e2,)),
     ]  # fmt: skip
     r = validate_graph(tools(), nodes, [], POINTS)
     phase = r.nodes[0]
     assert set(phase.effects) == {e1, e2}
     assert len(phase.warnings) == 1
     assert r.warnings == [f"Tp: {phase.warnings[0]}"]
-    assert "last step output" in phase.warnings[0]
+    assert "last step has no output" in phase.warnings[0]
 
 
 def test_validate_matching_io_chain_has_no_warning() -> None:
     nodes = [
         mk("p", (UPLOAD,), input="req", output="done"),
-        mk("s1", (UPLOAD,), level=1, parent="p", input="REQ ", output="Done"),
+        mk("s1", (UPLOAD,), level=1, parent="p", input="request text", output="the result"),
     ]
     r = validate_graph(tools(), nodes, [], POINTS)
     assert r.warnings == [] and r.nodes[0].warnings == ()
+
+
+def test_validate_keeps_step_subrange_without_parent_symbol() -> None:
+    """The model keeps the parent symbol on a sub-range that does not contain the name."""
+    sub = Anchor(file="app/api.py", start_line=7, end_line=7, symbol="upload")
+    phase = mk("p", (UPLOAD,))
+    r = validate_graph(tools(), [phase, mk("s", (sub,), level=1, parent="p")], [], POINTS)
+    assert r.dropped == 0 and r.drops == []
+
+
+def test_validate_records_drop_reasons() -> None:
+    sub = Anchor(file="app/api.py", start_line=7, end_line=7, symbol="upload")
+    past_end = Anchor(file="app/api.py", start_line=7, end_line=900, symbol="upload")
+    bad_symbol = Anchor(file="app/documents.py", start_line=12, end_line=14, symbol="nope")
+    nodes = [
+        mk("p", (UPLOAD,)),
+        mk("off", (LEGACY,), level=1, parent="p"),
+        mk("bad", (bad_symbol,), level=1, parent="p"),
+        mk("long", (past_end,), level=1, parent="p"),
+        mk("ok", (sub,), level=1, parent="p"),
+    ]
+    r = validate_graph(tools(), nodes, [], POINTS)
+    assert r.dropped == 3
+    text = "\n".join(r.drops)
+    assert "not on the recorded path" in text and "legacy_upload" in text
+    assert "symbol nope not found" in text
+    assert "is past end" in text
+    assert [n.id for n in r.nodes] == ["p", "ok"]
+
+
+def test_validate_records_orphan_drop() -> None:
+    nodes = [mk("p", (LEGACY,)), mk("s", (UPLOAD,), level=1, parent="p")]
+    r = validate_graph(tools(), nodes, [], POINTS)
+    assert r.dropped == 2
+    assert any("parent was dropped" in d for d in r.drops)
