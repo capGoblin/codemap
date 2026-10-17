@@ -11,7 +11,7 @@ function n(
   title: string, input: string, output: string, effects: Effect[] = [], extra: Partial<Node> = {},
 ): Node {
   return {
-    id, level, parent_id: parent, order, title, does: "", input, output,
+    id, level, parent_id: parent, order, title, summary: "", does: "", input, output,
     boundary_reason: "", anchors: [anchor(title)], effects, parallel_group: null,
     stale: false, warnings: [], ...extra,
   };
@@ -27,13 +27,13 @@ export const fixtureGraph: TraceGraph = {
   nodes: [
     n("p1", 0, null, 0, "Validate request", "HTTP body", "Order draft", [fx("db", "users", "read")]),
     n("p2", 0, null, 1, "Charge and store", "Order draft", "Order id", [
-      fx("db", "orders", "write"), fx("http", "payments-api", "call"),
+      fx("db", "orders", "write"), fx("http", "payments-api", "read"),
     ]),
-    n("p3", 0, null, 2, "Notify", "Order id", "Receipt", [fx("queue", "order-events", "publish")]),
+    n("p3", 0, null, 2, "Notify", "Order id", "Receipt", [fx("queue", "order-events", "write")]),
     n("p1.s1", 1, "p1", 0, "Parse body", "HTTP body", "Dict"),
     n("p1.s2", 1, "p1", 1, "Load user", "Dict", "User", [fx("db", "users", "read")]),
     n("p2.s1", 1, "p2", 0, "Charge card", "Order draft", "Payment", [
-      fx("http", "payments-api", "call"), fx("cache", "idempotency", "read"),
+      fx("http", "payments-api", "read"), fx("cache", "idempotency", "read"),
     ]),
     n("p2.s2", 1, "p2", 1, "Save order", "Payment", "Order id", [
       fx("db", "orders", "write"), fx("db", "order_items", "write"),
@@ -42,7 +42,7 @@ export const fixtureGraph: TraceGraph = {
     ], { stale: true }),
     n("p2.s3", 1, "p2", 2, "Payment failed", "Error", "Message", [], {}),
     n("p3.s1", 1, "p3", 0, "Publish event", "Order id", "Message id", [
-      fx("queue", "order-events", "publish"),
+      fx("queue", "order-events", "write"),
     ]),
   ],
   edges: [

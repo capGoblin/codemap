@@ -60,12 +60,12 @@ def expected() -> ExpectedTrace:
             ),
             ExpectedNode(title="worker", spans=[anc("app/worker.py", 1, 12)]),
         ],
-        effects=[ExpectedEffect(category="queue", target="jobs", op="publish")],
+        effects=[ExpectedEffect(category="queue", target="jobs", op="write")],
     )
 
 
 def perfect() -> list[Node]:
-    eff = Effect(category="queue", target="jobs", op="publish", anchor=anc("app/queue.py", 1, 2))
+    eff = Effect(category="queue", target="jobs", op="write", anchor=anc("app/queue.py", 1, 2))
     return [
         node("p1", 0, None, 0, anc("app/api.py", 1, 8)),
         node("s1", 1, "p1", 0, anc("app/api.py", 1, 4), effects=[eff]),

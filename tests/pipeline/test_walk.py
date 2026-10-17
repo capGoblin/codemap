@@ -197,3 +197,16 @@ def test_walk_hop_limit_marks_partial(tmp_path: Path) -> None:
     result = walk_path(ctx, ENTRY, "q")
     assert len(result.hops) == 1
     assert result.partial_reason == "hop limit reached"
+
+
+def test_record_effect_maps_old_op_and_cleans_target(tmp_path: Path) -> None:
+    effect = {
+        "category": "object_store",
+        "target": "S3 via DocumentStorage.put",
+        "op": "publish",
+        "anchor": S3_PUT,
+    }
+    script = [resp(tool_use("record_effect", effect, "e")), submit(done=True)]
+    ctx, _, _ = make(tmp_path, script)
+    result = walk_path(ctx, ENTRY, "q")
+    assert (result.effects[0].op, result.effects[0].target) == ("write", "DocumentStorage")

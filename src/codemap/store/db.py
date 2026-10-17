@@ -1,11 +1,15 @@
 """SQLite connection and migrations. Use one connection per thread."""
 
+import json
 import sqlite3
 import threading
+from collections.abc import Callable
 from importlib import resources
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+from codemap.domain.rules import normalize_op
+
+SCHEMA_VERSION = 2
 _MIGRATIONS = "codemap.store.migrations"
 
 
@@ -38,6 +42,29 @@ def open_db(path: Path) -> sqlite3.Connection:
     return conn
 
 
+def _rewrite_ops(conn: sqlite3.Connection) -> None:
+    """Old effect ops (delete, publish, consume, call) become read or write."""
+
+    def fix(effect: dict[str, object]) -> dict[str, object]:
+        return {**effect, "op": normalize_op(str(effect["op"]))}
+
+    for row in conn.execute("SELECT trace_id, id, effects FROM nodes").fetchall():
+        effects = json.dumps([fix(e) for e in json.loads(row["effects"])])
+        conn.execute(
+            "UPDATE nodes SET effects = ? WHERE trace_id = ? AND id = ?",
+            (effects, row["trace_id"], row["id"]),
+        )
+    for row in conn.execute("SELECT seq, effect FROM walk_effects").fetchall():
+        conn.execute(
+            "UPDATE walk_effects SET effect = ? WHERE seq = ?",
+            (json.dumps(fix(json.loads(row["effect"]))), row["seq"]),
+        )
+
+
+# Optional Python step per migration. It runs after the SQL file, in the same transaction.
+_POST: dict[int, Callable[[sqlite3.Connection], None]] = {2: _rewrite_ops}
+
+
 def _pending(current: int) -> list[tuple[int, str]]:
     found = []
     for item in resources.files(_MIGRATIONS).iterdir():
@@ -56,8 +83,13 @@ def migrate(conn: sqlite3.Connection) -> None:
         )
     for number, sql in _pending(current):
         # executescript commits first, so the transaction is explicit in the script.
+        post = _POST.get(number)
         try:
-            conn.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version={number};\nCOMMIT;")
+            conn.executescript(f"BEGIN;\n{sql}")
+            if post:
+                post(conn)
+            conn.execute(f"PRAGMA user_version={number}")
+            conn.commit()
         except sqlite3.Error:
             if conn.in_transaction:
                 conn.rollback()

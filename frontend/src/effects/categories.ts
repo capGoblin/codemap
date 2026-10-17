@@ -35,7 +35,7 @@ export const CATEGORY_COLOR: Record<UiCategory, string> = {
 };
 
 const OP_LETTER: Record<EffectOp, string> = {
-  write: "W", read: "R", delete: "D", publish: "P", consume: "P", call: "C",
+  write: "W", read: "R",
 };
 export const opLetter = (op: EffectOp): string => OP_LETTER[op];
 
