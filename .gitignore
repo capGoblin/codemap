@@ -5,3 +5,4 @@ src/codemap/server/static/
 node_modules/
 dist/
 .superpowers/
+evals/recordings/*.json

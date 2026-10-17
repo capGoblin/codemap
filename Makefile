@@ -1,4 +1,4 @@
-.PHONY: check dev build-ui gen-api
+.PHONY: check dev build-ui gen-api eval
 
 check:
 	uv run ruff check .
@@ -21,3 +21,6 @@ gen-api:
 	uv run python scripts/dump_openapi.py frontend/openapi.json
 	OPENAPI_JSON=openapi.json npm --prefix frontend run gen:api
 	rm frontend/openapi.json
+
+eval:
+	uv run python -m evals.run_golden evals/example-file-parsing.expected.json
