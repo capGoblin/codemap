@@ -36,7 +36,7 @@ export function DetailPanel({ loader = fixtureDetailLoader }: { loader?: DetailL
     let stale = false;
     setLoaded({ state: "loading" });
     loader(traceId, nodeId).then(
-      (details) => !stale && setLoaded({ state: "ok", details }),
+      (detail) => !stale && setLoaded({ state: "ok", details: detail.functions }),
       (e) => !stale && setLoaded({ state: "error", message: String(e) }),
     );
     return () => {

@@ -10,8 +10,9 @@ export type Edge = S["Edge"];
 export type Trace = S["Trace"];
 export type TraceGraph = S["TraceGraph"];
 export type FunctionDetail = S["FunctionDetail"];
+export type NodeDetail = S["NodeDetail"];
 export type EffectCategory = Effect["category"];
 export type EffectOp = Effect["op"];
 export type EdgeKind = Edge["kind"];
 
-export type DetailLoader = (traceId: string, nodeId: string) => Promise<FunctionDetail[]>;
+export type DetailLoader = (traceId: string, nodeId: string) => Promise<NodeDetail>;

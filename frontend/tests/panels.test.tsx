@@ -16,9 +16,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const anchor = { file: "app/x.py", start_line: 40, end_line: 42, symbol: "f", content_hash: "h" };
-const loader: DetailLoader = vi.fn(async () => [
-  { anchor, signature: "def f(a)", code: "line one\nline two\nline three", calls: ["g", "h"] },
-]);
+const loader: DetailLoader = vi.fn(async () => ({
+  explain: null,
+  explain_error: null,
+  calls: [],
+  effects: [],
+  functions: [
+    { anchor, signature: "def f(a)", code: "line one\nline two\nline three", calls: ["g", "h"] },
+  ],
+}));
 
 describe("DetailPanel", () => {
   it("shows code with line numbers from start_line, calls and node info", async () => {

@@ -106,6 +106,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/traces/{trace_id}/nodes/{node_id}/detail/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Regenerate */
+        post: operations["regenerate_api_v1_traces__trace_id__nodes__node_id__detail_regenerate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -125,6 +142,13 @@ export interface components {
              * @default
              */
             content_hash: string;
+        };
+        /** CallLink */
+        CallLink: {
+            /** Symbol */
+            symbol: string;
+            /** Node Id */
+            node_id?: string | null;
         };
         /** Edge */
         Edge: {
@@ -159,6 +183,18 @@ export interface components {
             fields: string[];
             anchor: components["schemas"]["Anchor"];
         };
+        /** ExplainStep */
+        ExplainStep: {
+            /** Text */
+            text: string;
+            /** Lines */
+            lines: [
+                number,
+                number
+            ];
+            /** File */
+            file: string;
+        };
         /** FunctionDetail */
         FunctionDetail: {
             anchor: components["schemas"]["Anchor"];
@@ -178,6 +214,21 @@ export interface components {
         Health: {
             /** Version */
             version: string;
+        };
+        /** IoSide */
+        IoSide: {
+            /**
+             * Type
+             * @default
+             */
+            type: string;
+            /**
+             * Fields
+             * @default []
+             */
+            fields: string[];
+            /** Node Id */
+            node_id?: string | null;
         };
         /** Node */
         Node: {
@@ -223,6 +274,49 @@ export interface components {
              * @default []
              */
             warnings: string[];
+        };
+        /** NodeDetail */
+        NodeDetail: {
+            explain?: components["schemas"]["NodeExplain"] | null;
+            /** Explain Error */
+            explain_error?: string | null;
+            /**
+             * Functions
+             * @default []
+             */
+            functions: components["schemas"]["FunctionDetail"][];
+            /**
+             * Calls
+             * @default []
+             */
+            calls: components["schemas"]["CallLink"][];
+            /**
+             * Effects
+             * @default []
+             */
+            effects: components["schemas"]["Effect"][];
+        };
+        /** NodeExplain */
+        NodeExplain: {
+            /**
+             * Steps
+             * @default []
+             */
+            steps: components["schemas"]["ExplainStep"][];
+            /**
+             * @default {
+             *       "type": "",
+             *       "fields": []
+             *     }
+             */
+            input: components["schemas"]["IoSide"];
+            /**
+             * @default {
+             *       "type": "",
+             *       "fields": []
+             *     }
+             */
+            output: components["schemas"]["IoSide"];
         };
         /** Trace */
         Trace: {
@@ -454,7 +548,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FunctionDetail"][];
+                    "application/json": components["schemas"]["NodeDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regenerate_api_v1_traces__trace_id__nodes__node_id__detail_regenerate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trace_id: string;
+                node_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeDetail"];
                 };
             };
             /** @description Validation Error */

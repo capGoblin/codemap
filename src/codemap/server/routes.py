@@ -3,7 +3,7 @@ from sse_starlette import EventSourceResponse
 from starlette.concurrency import run_in_threadpool
 
 from codemap import __version__
-from codemap.domain.models import FunctionDetail, Trace, TraceGraph
+from codemap.domain.models import NodeDetail, Trace, TraceGraph
 from codemap.server.schemas import Health
 from codemap.server.sse import event_stream
 from codemap.service import ExpandError, Service
@@ -49,7 +49,11 @@ def make_router(service: Service) -> APIRouter:
             raise HTTPException(502, f"Could not split the phase: {exc}") from exc
 
     @router.get("/traces/{trace_id}/nodes/{node_id}/detail")
-    def detail(trace_id: str, node_id: str) -> list[FunctionDetail]:
+    def detail(trace_id: str, node_id: str) -> NodeDetail:
         return service.get_detail(trace_id, node_id)
+
+    @router.post("/traces/{trace_id}/nodes/{node_id}/detail/regenerate")
+    def regenerate(trace_id: str, node_id: str) -> NodeDetail:
+        return service.regenerate_detail(trace_id, node_id)
 
     return router
