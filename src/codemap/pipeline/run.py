@@ -9,7 +9,7 @@ model-call and symbol caches, which share the connection lock.
 import queue
 import threading
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 
 from codemap.domain.events import Event, EventKind
@@ -17,6 +17,7 @@ from codemap.domain.models import Anchor, Bridge, Edge, Effect, Hop, Node, Trace
 from codemap.domain.rules import (
     anchor_contains,
     anchor_key,
+    anchors_overlap,
     assign_effects,
     drop_ratio,
     ordered_points,
@@ -154,8 +155,21 @@ def _scope(node: Node, hops: list[Hop]) -> list[Anchor]:
     return [*node.anchors, *inside]
 
 
-def _eligible(node: Node, hops: list[Hop]) -> bool:
-    return node.level < EAGER_MAX_LEVEL and len(subpath_points(node, hops)) >= MIN_SUBPATH_POINTS
+def _blocked(node: Node, nodes: Sequence[Node]) -> list[Anchor]:
+    """Anchors of the other phases. A node's extent must not reach into them."""
+    own = node.anchors
+    return [
+        a
+        for n in nodes
+        if n.level == 0
+        for a in n.anchors
+        if not any(anchors_overlap(a, o) for o in own)
+    ]
+
+
+def _eligible(node: Node, hops: list[Hop], nodes: list[Node]) -> bool:
+    points = subpath_points(node, hops, _blocked(node, nodes))
+    return node.level < EAGER_MAX_LEVEL and len(points) >= MIN_SUBPATH_POINTS
 
 
 def _deepen_all(
@@ -207,7 +221,9 @@ def _split_level(
     reasons: list[str],
 ) -> list[Node]:
     """Split every parent into children, saving each parent's children as they arrive."""
-    jobs: list[Job] = [(p, subpath_points(p, hops) or list(p.anchors)) for p in parents]
+    jobs: list[Job] = [
+        (p, subpath_points(p, hops, _blocked(p, nodes)) or list(p.anchors)) for p in parents
+    ]
     level_kids: list[Node] = []
 
     def done(i: int, result: StepResult) -> None:
@@ -280,7 +296,7 @@ def run_trace(ctx: TraceContext, question: str, entry: Anchor, mode: TraceMode) 
         parents = phases
         while parents and not ctx.cancel.is_set():
             kids = _split_level(ctx, parents, hops, effects, nodes, edges, reasons)
-            parents = [k for k in kids if _eligible(k, hops)]
+            parents = [k for k in kids if _eligible(k, hops, nodes)]
 
     sides, side_edges = side_nodes(side_hops(hops), nodes)
     _emit(ctx, "step_started", "validate")
@@ -325,8 +341,9 @@ def expand_node(ctx: TraceContext, node_id: str) -> list[Node]:
     if node is None or trace is None:
         raise KeyError(node_id)
     hops = store.get_hops(tid)
+    blocked = _blocked(node, store.get_graph(tid, 0).nodes)
     new_hops: list[Hop] = []
-    if len(subpath_points(node, hops)) < MIN_SUBPATH_POINTS:
+    if len(subpath_points(node, hops, blocked)) < MIN_SUBPATH_POINTS:
         known = [h for h in hops if any(anchor_contains(a, h.caller) for a in node.anchors)]
         walk = walk_deepen(ctx, node, trace.question, EXPAND_HOPS, known)
         new_hops = walk.hops
@@ -334,7 +351,7 @@ def expand_node(ctx: TraceContext, node_id: str) -> list[Node]:
             _emit(ctx, "warning", f"deepen {node.title}: {walk.partial_reason}")
         hops = store.get_hops(tid)
     effects = store.get_walk_effects(tid)
-    points = subpath_points(node, hops) or list(node.anchors)
+    points = subpath_points(node, hops, blocked) or list(node.anchors)
 
     children, reason = split_children(ctx, node, points, effects)
     if reason:

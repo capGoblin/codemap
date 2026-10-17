@@ -3,7 +3,7 @@
 import re
 from collections.abc import Sequence
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from codemap.agents.limits import LimitReached
 from codemap.agents.loop import run_tool_loop
@@ -17,18 +17,29 @@ from codemap.repo.anchors import check_range, with_hash
 
 EFFECTS_MAX_LINES = 1500
 EFFECTS_HEAD_LINES = 30
-EFFECTS_MAX_TURNS = 3
+EFFECTS_MAX_TURNS = 6
 _IDENT = re.compile(r"[A-Za-z_]\w*")
+
+
+def _names(value: object) -> object:
+    """Accept a list, a comma string or `{"item": ...}` for `fields`."""
+    if isinstance(value, dict) and set(value) == {"item"}:
+        value = value["item"]
+    if isinstance(value, str):
+        return [v.strip() for v in value.split(",") if v.strip()]
+    return value
 
 
 class EffectDraft(BaseModel):
     category: EffectCategory
     target: str
     op: str
-    fields: tuple[str, ...] = ()
+    fields: list[str] = []
     file: str
     line: int
     symbol: str = ""
+
+    _fields = field_validator("fields", mode="before")(_names)
 
 
 class EffectsSubmit(BaseModel):
@@ -95,7 +106,7 @@ def phase_effects(
             category=draft.category,
             target=normalize_target(draft.category, draft.target),
             op=op,
-            fields=draft.fields,
+            fields=tuple(draft.fields),
             anchor=anchor,
         )
         if _key(effect) in seen:

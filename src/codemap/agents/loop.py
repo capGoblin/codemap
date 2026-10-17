@@ -33,7 +33,9 @@ def run_tool_loop[T: BaseModel](
     max_turns: int = 60,
     max_tokens: int = 4096,
     keep_recent_turns: int | None = None,
+    last_turn_schema: type[T] | None = None,
 ) -> T:
+    """`last_turn_schema`, when given, validates the submit of the final turn instead."""
     handlers = {t.name: t.handler for t in tools}
     specs = [
         {"name": t.name, "description": t.description, "input_schema": t.input_schema}
@@ -47,7 +49,8 @@ def run_tool_loop[T: BaseModel](
         }
     )
     messages: list[dict[str, Any]] = [{"role": "user", "content": user}]
-    for _ in range(max_turns):
+    for turn in range(max_turns):
+        schema = last_turn_schema if last_turn_schema and turn == max_turns - 1 else submit_schema
         budget.check()
         resp = model.respond(
             system=system,
@@ -66,7 +69,7 @@ def run_tool_loop[T: BaseModel](
         for block in uses:
             budget.count_tool_call()
             if block["name"] == SUBMIT:
-                content, parsed = _submit(submit_schema, block["input"])
+                content, parsed = _submit(schema, block["input"])
                 if parsed is not None and answer is None:
                     answer = parsed
                 results.append(_result(block, content, parsed is None))

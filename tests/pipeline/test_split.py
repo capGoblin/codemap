@@ -255,13 +255,13 @@ def test_split_steps_sends_code_inline_and_gives_no_read_tools(tmp_path: Path) -
     assert [t["name"] for t in model.requests[0]["tools"]] == ["submit"]
 
 
-def test_split_steps_stops_after_four_turns(tmp_path: Path) -> None:
+def test_split_steps_stops_after_six_turns(tmp_path: Path) -> None:
     chatter = resp({"type": "text", "text": "thinking"}, stop="end_turn")
-    model = ScriptedModel([chatter] * 6)
+    model = ScriptedModel([chatter] * 8)
     ctx = make_ctx(tmp_path, model)
     steps, reason = split_steps(ctx, node("p0", 0, 0, (UPLOAD,)), [])
     assert steps == [] and reason == "max_turns"
-    assert len(model.requests) == 4
+    assert len(model.requests) == 6
 
 
 def test_phase_code_over_cap_sends_signatures_and_heads(tmp_path: Path) -> None:
@@ -373,4 +373,14 @@ def test_subpath_points_keeps_only_inside_anchors() -> None:
     outside = a("app/unused.py", 1, 3, "legacy_upload")
     phase = node("p0", 0, 0, (UPLOAD, ACCEPT))
     hops = [hop(UPLOAD, ACCEPT), hop(ACCEPT, outside), hop(UPLOAD, ACCEPT)]
-    assert subpath_points(phase, hops) == [UPLOAD, ACCEPT]
+    assert subpath_points(phase, hops, blocked=[outside]) == [UPLOAD, ACCEPT]
+    assert subpath_points(phase, hops) == [UPLOAD, ACCEPT, outside]  # reached through a call
+
+
+def test_last_turn_trims_long_title_instead_of_failing(tmp_path: Path) -> None:
+    wordy = step_draft("one two three four five six", [ACCEPT]) | {"parallel_group": ""}
+    model = ScriptedModel([submit(steps=[wordy])] * 6)
+    parent = node("p0", 0, 0, (UPLOAD, ACCEPT))
+    kids, reason = split_children(make_ctx(tmp_path, model), parent, [UPLOAD, ACCEPT], [])
+    assert reason is None and kids[0].title == "one two three four"
+    assert len(model.requests) == 6

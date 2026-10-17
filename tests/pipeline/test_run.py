@@ -84,9 +84,12 @@ class RoutedModel:
         if system == prompt("split_steps"):
             first = messages[0]["content"]
             return next(
-                r
-                for title, r in self.steps.items()
-                if f"Phase: {title}\n" in first or f"Step: {title}\n" in first
+                (
+                    r
+                    for title, r in self.steps.items()
+                    if f"Phase: {title}\n" in first or f"Step: {title}\n" in first
+                ),
+                submit(steps=[]),
             )
         return self.walk.pop(0)
 
@@ -165,9 +168,9 @@ def test_run_trace_events_in_order(tmp_path: Path) -> None:
         "walk", "split_phases", "deepen", "split_steps", "validate", "save",
     ]  # fmt: skip
     splits = [e for e in events if e.kind == "phase_split"]
-    assert len(splits) == 4
+    assert len(splits) == 6  # 2 phases, then 2 + 2 steps that have no sub-path
     assert all("phase_id" in e.data for e in splits)
-    assert [e.data.get("steps") for e in splits[2:]] == [2, 2]
+    assert [e.data.get("steps") for e in splits[2:4]] == [2, 2]
     assert events[-1].kind == "finished" and events[-1].data == {"status": "complete"}
     kinds = [e.kind for e in events]
     assert kinds.index("phase_split") < kinds.index("finished")
@@ -455,7 +458,7 @@ def test_expand_level_two_node_builds_level_three(tmp_path: Path) -> None:
     assert any(n.level == 3 for n in ctx.store.get_graph("t1", 9).nodes)
 
 
-def test_expand_with_few_points_deepens_first(tmp_path: Path) -> None:
+def test_expand_with_enough_reachable_points_does_not_deepen(tmp_path: Path) -> None:
     model = deep_model()
     ctx, _ = setup(tmp_path, model)
     run_trace(ctx, "q", ENTRY, "eager")
@@ -464,7 +467,7 @@ def test_expand_with_few_points_deepens_first(tmp_path: Path) -> None:
     accept = next(n for n in ctx.store.get_graph("t1", 9).nodes if n.title == "accept")
     expand_node(ctx, accept.id)
     hops = ctx.store.get_hops("t1")
-    assert len(hops) == before + 1 and hops[-1].callee.symbol == "insert"
+    assert len(hops) == before  # accept reaches enough points through recorded calls
 
 
 def test_deepen_limit_is_a_reason_per_phase(tmp_path: Path) -> None:

@@ -8,6 +8,10 @@ You get ONE node (a phase or a step), its anchors, its sub-path points and the a
 2. A trivial helper folds into its caller's child. It does not get its own child.
 3. Use judgement only where the code is vague. Signals: the data shape changes, a commit or write happens, an async handoff happens, a module boundary is crossed.
 
+# Plumbing
+
+Context managers, scopes, wrappers, billing or "paid stage" guards, progress reporting, logging and workflow start calls are plumbing. Fold them into the child of their caller. Never make them a child.
+
 # Code
 
 The message holds the code of the node. If the node is large, you see only signatures and the first lines of each anchor. Use the signatures to place the children.

@@ -9,14 +9,14 @@ import re
 import uuid
 from collections.abc import Collection, Sequence
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from codemap.agents.limits import LimitReached
 from codemap.agents.loop import run_tool_loop
 from codemap.agents.model import ModelError
 from codemap.agents.schema import tolerant_list
 from codemap.domain.models import Anchor, Edge, EdgeKind, Effect, Hop, Node
-from codemap.domain.rules import anchor_contains, assign_effects
+from codemap.domain.rules import anchor_contains, anchors_overlap, assign_effects
 from codemap.pipeline.context import TraceContext, prompt
 from codemap.repo.anchors import with_hash
 from codemap.repo.tools import RepoTools
@@ -134,16 +134,44 @@ class ChildDraft(BaseModel):
 
     _unwrap = tolerant_list("anchors")
 
+    @field_validator("parallel_group", mode="before")
+    @classmethod
+    def _blank_group(cls, value: object) -> object:
+        return None if value in ("", "null", "none") else value
+
     @model_validator(mode="after")
     def _check_words(self) -> "ChildDraft":
         _check_lengths(self.title, self.summary)
         return self
 
 
+def _trim_words(text: str, limit: int) -> str:
+    return " ".join(text.split()[:limit])
+
+
+class TrimmedChild(ChildDraft):
+    """Last-turn draft: cut a long title or summary instead of rejecting it."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _trim(cls, data: object) -> object:
+        if isinstance(data, dict):
+            data = {
+                **data,
+                "title": _trim_words(str(data.get("title", "")), MAX_TITLE_WORDS),
+                "summary": _trim_words(str(data.get("summary", "")), MAX_SUMMARY_WORDS),
+            }
+        return data
+
+
 class ChildrenSubmit(BaseModel):
     steps: list[ChildDraft]
 
     _unwrap = tolerant_list("steps")
+
+
+class TrimmedChildren(ChildrenSubmit):
+    steps: list[TrimmedChild]  # type: ignore[assignment]
 
 
 def _children_schema(parent: Node) -> type[ChildrenSubmit]:
@@ -218,7 +246,9 @@ def _inside(phase: Node, anchor: Anchor) -> bool:
 
 MAX_CODE_LINES = 800
 HEAD_LINES = 40
-STEP_MAX_TURNS = 4
+SIG_CHARS = 140
+STEP_MAX_TURNS = 6
+MANY_POINTS = 40  # above this, points go to the model as signatures grouped by file
 
 
 def _numbered(lines: list[str], first: int) -> str:
@@ -270,19 +300,69 @@ def anchors_code(
     return "\n\n".join(blocks)
 
 
-def subpath_points(node: Node, hops: Sequence[Hop]) -> list[Anchor]:
-    """Path points whose anchors lie inside the node's anchors, in first-seen order.
+def node_extent(node: Node, hops: Sequence[Hop], blocked: Sequence[Anchor] = ()) -> list[Anchor]:
+    """The node's anchors plus every callee reachable from them through recorded call hops.
 
-    A hop's caller and callee are both points. Rejected hops are skipped.
+    Callees that overlap a `blocked` anchor (other phases) are not entered.
     """
+    extent = list(node.anchors)
+    grown = True
+    while grown:
+        grown = False
+        for h in hops:
+            if h.verdict == "rejected" or h.kind not in ("call", "async"):
+                continue
+            if any(anchor_contains(e, h.callee) for e in extent):
+                continue
+            if any(anchors_overlap(b, h.callee) for b in blocked):
+                continue
+            if any(anchor_contains(e, h.caller) for e in extent):
+                extent.append(h.callee)
+                grown = True
+    return extent
+
+
+def subpath_points(node: Node, hops: Sequence[Hop], blocked: Sequence[Anchor] = ()) -> list[Anchor]:
+    """Path points inside the node's extent, in first-seen order.
+
+    A hop's caller and callee are both points. Rejected hops are skipped. The extent is the
+    node's anchors and the functions its recorded calls reach, so a thin wrapper node
+    sees the code it delegates to.
+    """
+    extent = node_extent(node, hops, blocked)
     points: list[Anchor] = []
     for h in hops:
         if h.verdict == "rejected":
             continue
         for anchor in (h.caller, h.callee):
-            if _inside(node, anchor) and anchor not in points:
+            if any(anchor_contains(e, anchor) for e in extent) and anchor not in points:
                 points.append(anchor)
     return points
+
+
+def _points_text(tools: RepoTools, points: Sequence[Anchor]) -> str:
+    """Numbered points, or above MANY_POINTS the signatures of the points grouped by file."""
+    if len(points) <= MANY_POINTS:
+        return _list_anchors(points)
+    by_file: dict[str, list[Anchor]] = {}
+    for a in points:
+        by_file.setdefault(a.file, []).append(a)
+    blocks = []
+    for file, anchors in by_file.items():
+        rows = []
+        for a in anchors:
+            first = (_anchor_lines(tools, a) or [""])[0].strip()[:SIG_CHARS]
+            rows.append(f"  {a.start_line}-{a.end_line} {a.symbol}: {first}")
+        blocks.append(f"{file}\n" + "\n".join(rows))
+    return "\n".join(blocks)
+
+
+def _parent_code(tools: RepoTools, parent: Node, points: Sequence[Anchor]) -> str:
+    """Code of the parent anchors, plus the points when there are few of them."""
+    if len(points) > MANY_POINTS:
+        return phase_code(tools, parent)
+    extra = [p for p in points if not any(anchor_contains(a, p) for a in parent.anchors)]
+    return anchors_code(tools, [*parent.anchors, *extra], MAX_CODE_LINES, HEAD_LINES)
 
 
 def split_children(
@@ -294,8 +374,8 @@ def split_children(
         f"{kind}: {parent.title}\n{parent.summary}\n{parent.does}\n"
         f"Input: {parent.input}\nOutput: {parent.output}\n\n"
         f"Parent anchors:\n{_list_anchors(parent.anchors)}\n\n"
-        f"Sub-path points:\n{_list_anchors(points)}\n\n"
-        f"Parent code:\n{phase_code(ctx.tools, parent)}"
+        f"Sub-path points:\n{_points_text(ctx.tools, points)}\n\n"
+        f"Parent code:\n{_parent_code(ctx.tools, parent, points)}"
     )
     try:
         sub = run_tool_loop(
@@ -306,12 +386,18 @@ def split_children(
             submit_schema=_children_schema(parent),
             budget=ctx.build_budget,
             max_turns=STEP_MAX_TURNS,
+            last_turn_schema=TrimmedChildren,
         )
     except (LimitReached, ModelError) as exc:
         return [], str(exc)
+    allowed = [*parent.anchors, *points]
     children: list[Node] = []
     for draft in sub.steps:
-        kept = tuple(with_hash(ctx.tools, a) for a in draft.anchors if _inside(parent, a))
+        kept = tuple(
+            with_hash(ctx.tools, a)
+            for a in draft.anchors
+            if any(anchor_contains(o, a) for o in allowed)
+        )
         if not kept:
             continue
         children.append(

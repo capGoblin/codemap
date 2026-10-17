@@ -86,7 +86,10 @@ class RoutedModel:
             return self.phases
         if system == prompt("split_steps"):
             first = messages[0]["content"]
-            return next(r for title, r in self.steps.items() if f"Phase: {title}\n" in first)
+            return next(
+                (r for title, r in self.steps.items() if f"Phase: {title}\n" in first),
+                resp(tool_use("submit", {"steps": []}, "s")),  # a step split: no sub-steps
+            )
         if system == prompt("explain"):
             return self.explain
         return self.walk.pop(0)
