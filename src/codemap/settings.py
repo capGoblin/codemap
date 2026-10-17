@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     max_cost_usd: float = 5.0
     max_tool_calls: int = 400
     max_hops: int = 200
+    skeleton_hops: int = 40
+    deepen_hops: int = 160
     split_concurrency: int = 4
     request_timeout_s: float = 120
 

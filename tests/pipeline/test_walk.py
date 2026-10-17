@@ -7,9 +7,9 @@ import pytest
 
 from codemap.agents.model import ModelError
 from codemap.domain.events import Event
-from codemap.domain.models import Anchor, Trace
+from codemap.domain.models import Anchor, Node, Trace
 from codemap.pipeline.context import TraceContext, build_context
-from codemap.pipeline.walk import walk_path
+from codemap.pipeline.walk import deepen_budgets, next_budget, walk_deepen, walk_path, walk_skeleton
 from codemap.settings import Settings
 from fakes import ScriptedModel, resp, tool_use
 
@@ -210,3 +210,66 @@ def test_record_effect_maps_old_op_and_cleans_target(tmp_path: Path) -> None:
     ctx, _, _ = make(tmp_path, script)
     result = walk_path(ctx, ENTRY, "q")
     assert (result.effects[0].op, result.effects[0].target) == ("write", "DocumentStorage")
+
+
+def phase_node(id: str, *anchors: dict) -> Node:  # noqa: A002
+    return Node(
+        id=id, level=0, parent_id=None, order=0, title="Intake", does="", input="", output="",
+        boundary_reason="", anchors=tuple(Anchor(**a) for a in anchors),
+    )  # fmt: skip
+
+
+def test_skeleton_uses_skeleton_budget_and_prompt(tmp_path: Path) -> None:
+    script = [hop(UPLOAD, ACCEPT, "a"), hop(ACCEPT, ENQUEUE, "b"), submit()]
+    ctx, model, _ = make(tmp_path, script)
+    ctx.settings = ctx.settings.model_copy(update={"skeleton_hops": 1})
+    result = walk_skeleton(ctx, ENTRY, "q")
+    assert len(result.hops) == 1 and result.partial_reason == "hop limit reached"
+    assert "Hop limit: 1" in model.requests[0]["messages"][0]["content"]
+    assert "stage" in model.requests[0]["system"]
+
+
+def test_deepen_rejects_hops_outside_phase(tmp_path: Path) -> None:
+    script = [hop(ENQUEUE, PARSE, "a"), submit()]
+    ctx, model, _ = make(tmp_path, script)
+    phase = phase_node("p1", UPLOAD)
+    result = walk_deepen(ctx, phase, "q", 5, [])
+    assert result.hops == []
+    reply = model.requests[1]["messages"][-1]["content"][0]["content"]
+    assert reply == "error: outside this phase; record only calls inside Intake"
+    first = model.requests[0]["messages"][0]["content"]
+    assert "Intake" in first and "app/api.py:5-8 upload" in first
+    assert "Go into the functions that do the real work of this stage." in first
+
+
+def test_deepen_goes_multiple_levels_down(tmp_path: Path) -> None:
+    script = [
+        hop(UPLOAD, ACCEPT, "a"),
+        hop(ACCEPT, ENQUEUE, "b"),
+        verdict(verdict="confirmed", evidence="accept calls enqueue"),
+        submit(),
+    ]
+    ctx, _, _ = make(tmp_path, script)
+    result = walk_deepen(ctx, phase_node("p1", UPLOAD), "q", 5, [])
+    assert [h.callee.symbol for h in result.hops] == ["accept_document", "enqueue"]
+
+
+def test_deepen_budget_is_its_own(tmp_path: Path) -> None:
+    script = [hop(UPLOAD, ACCEPT, "a"), hop(UPLOAD, ENQUEUE, "b"), submit()]
+    ctx, _, _ = make(tmp_path, script)
+    result = walk_deepen(ctx, phase_node("p1", UPLOAD), "q", 1, [])
+    assert len(result.hops) == 1 and result.partial_reason == "hop limit reached"
+
+
+def test_deepen_budgets_equal_and_floored() -> None:
+    phases = [phase_node(i, UPLOAD) for i in "abcd"]
+    assert deepen_budgets(phases, 160) == [40, 40, 40, 40]
+    assert deepen_budgets(phases, 8) == [5, 5, 5, 5]
+    assert deepen_budgets([], 160) == []
+
+
+def test_next_budget_carries_unused_hops() -> None:
+    base = deepen_budgets([phase_node(i, UPLOAD) for i in "ab"], 20)
+    used_first = 4
+    assert next_budget(base[1], base[0] - used_first) == 16
+    assert next_budget(base[1], 0) == 10

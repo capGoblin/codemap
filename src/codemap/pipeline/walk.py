@@ -11,8 +11,21 @@ from codemap.agents.limits import LimitReached
 from codemap.agents.loop import Tool, run_tool_loop
 from codemap.agents.model import ModelError
 from codemap.domain.events import Event, EventKind
-from codemap.domain.models import Anchor, EdgeKind, Effect, EffectCategory, Hop, HopType
-from codemap.domain.rules import callee_named_in, normalize_op, normalize_target
+from codemap.domain.models import (
+    Anchor,
+    EdgeKind,
+    Effect,
+    EffectCategory,
+    Hop,
+    HopType,
+    Node,
+)
+from codemap.domain.rules import (
+    anchor_contains,
+    callee_named_in,
+    normalize_op,
+    normalize_target,
+)
 from codemap.pipeline.context import TraceContext, prompt, read_tools
 from codemap.pipeline.verify import verify_hop
 from codemap.repo.anchors import check_anchor, with_hash
@@ -62,8 +75,17 @@ def _fmt(anchor: Anchor) -> str:
 
 
 class _Walker:
-    def __init__(self, ctx: TraceContext) -> None:
+    def __init__(
+        self,
+        ctx: TraceContext,
+        budget: int,
+        scope: list[Anchor] | None = None,
+        scope_title: str = "",
+    ) -> None:
         self.ctx = ctx
+        self.hop_budget = budget
+        self.scope = scope  # None means no scope check (skeleton pass)
+        self.scope_title = scope_title
         self.hops: list[Hop] = []
         self.effects: list[Effect] = []
         self.hop_limited = False
@@ -85,17 +107,26 @@ class _Walker:
                 return error
         return None
 
+    def _in_scope(self, caller: Anchor) -> bool:
+        """Inside a phase anchor, or inside the callee of a hop already recorded in this pass."""
+        if self.scope is None:
+            return True
+        allowed = [*self.scope, *(h.callee for h in self.hops)]
+        return any(anchor_contains(outer, caller) for outer in allowed)
+
     def _caller_text(self, caller: Anchor) -> str:
         lines = self.ctx.tools.file_text(caller.file).splitlines()
         return "\n".join(lines[caller.start_line - 1 : caller.end_line])
 
     def record_hop(self, args: dict[str, Any]) -> str:
-        if len(self.hops) >= self.ctx.settings.max_hops:
+        if len(self.hops) >= self.hop_budget:
             self.hop_limited = True
             return HOP_LIMIT_TEXT
         spec = HopInput.model_validate(args)
         if error := self._first_error(spec.caller, spec.callee):
             return f"error: {error}"
+        if not self._in_scope(spec.caller):
+            return f"error: outside this phase; record only calls inside {self.scope_title}"
         tools = self.ctx.tools
         if spec.wiring is not None and self._first_error(spec.wiring):
             # A bad wiring anchor must not lose a real hop (spec 5.4). The verifier decides.
@@ -165,18 +196,28 @@ def _walk_tools(walker: _Walker) -> list[Tool]:
     ]
 
 
-def _user_message(ctx: TraceContext, entry: Anchor, question: str) -> str:
-    return f"Question: {question}\nEntry point: {_fmt(entry)}\nHop limit: {ctx.settings.max_hops}"
+def _user_message(ctx: TraceContext, entry: Anchor, question: str, budget: int) -> str:
+    return f"Question: {question}\nEntry point: {_fmt(entry)}\nHop limit: {budget}"
 
 
-def walk_path(ctx: TraceContext, entry: Anchor, question: str) -> WalkResult:
-    walker = _Walker(ctx)
+def _deepen_message(phase: Node, question: str, budget: int, known: list[Hop]) -> str:
+    anchors = "\n".join(_fmt(a) for a in phase.anchors)
+    seen = "\n".join(f"{_fmt(h.caller)} -> {_fmt(h.callee)}" for h in known) or "none"
+    return (
+        f"Question: {question}\nPhase: {phase.title}\nAnchors:\n{anchors}\n"
+        f"Hops already known under this phase:\n{seen}\nHop limit: {budget}\n"
+        "Go into the functions that do the real work of this stage."
+    )
+
+
+def _run(walker: _Walker, system: str, user: str) -> WalkResult:
+    ctx = walker.ctx
     partial: str | None = None
     try:
         done = run_tool_loop(
             ctx.model,
-            system=prompt("walk"),
-            user=_user_message(ctx, entry, question),
+            system=system,
+            user=user,
             tools=_walk_tools(walker),
             submit_schema=WalkSubmit,
             budget=ctx.budget,
@@ -192,3 +233,35 @@ def walk_path(ctx: TraceContext, entry: Anchor, question: str) -> WalkResult:
     if partial is None and walker.hop_limited:
         partial = "hop limit reached"
     return WalkResult(walker.hops, walker.effects, partial)
+
+
+def walk_skeleton(ctx: TraceContext, entry: Anchor, question: str) -> WalkResult:
+    budget = ctx.settings.skeleton_hops
+    walker = _Walker(ctx, budget)
+    return _run(walker, prompt("walk_skeleton"), _user_message(ctx, entry, question, budget))
+
+
+def walk_deepen(
+    ctx: TraceContext, phase: Node, question: str, budget: int, known: list[Hop]
+) -> WalkResult:
+    walker = _Walker(ctx, budget, list(phase.anchors), phase.title)
+    return _run(walker, prompt("walk_deepen"), _deepen_message(phase, question, budget, known))
+
+
+def deepen_budgets(phases: list[Node], total: int, floor: int = 5) -> list[int]:
+    """Equal share per phase, in phase order. Anchored size does not predict where logic is."""
+    if not phases:
+        return []
+    return [max(floor, total // len(phases))] * len(phases)
+
+
+def next_budget(base: int, carried: int) -> int:
+    """Budget for the next phase: its base share plus hops the earlier phases left unused."""
+    return base + carried
+
+
+def walk_path(ctx: TraceContext, entry: Anchor, question: str) -> WalkResult:
+    """Single-pass walk kept for run.py until it uses the two passes."""
+    budget = ctx.settings.max_hops
+    walker = _Walker(ctx, budget)
+    return _run(walker, prompt("walk_skeleton"), _user_message(ctx, entry, question, budget))
