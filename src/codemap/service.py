@@ -29,7 +29,7 @@ from codemap.pipeline.context import TraceContext, build_context
 from codemap.pipeline.detail import build_detail
 from codemap.pipeline.explain import ALL_LEVELS, ExplainError, call_links, explain_node
 from codemap.pipeline.resolve import ResolveLimitError, resolve_entry
-from codemap.pipeline.run import ExpandError, expand_phase, run_trace
+from codemap.pipeline.run import ExpandError, expand_node, run_trace
 from codemap.repo.anchors import is_stale
 from codemap.repo.ignore import RepoIgnore
 from codemap.repo.index import SymbolIndex
@@ -199,10 +199,16 @@ class Service:
         return self._store.get_graph(trace_id, depth)
 
     def expand_node(self, trace_id: str, node_id: str) -> TraceGraph:
-        """Split one phase into steps on the caller's thread. Raises KeyError if unknown."""
+        """Build the children of any node on the caller's thread. Raises KeyError if unknown.
+
+        Returns the graph down to the level of the new children.
+        """
+        node = self._store.get_node(trace_id, node_id)
+        if node is None:
+            raise KeyError(node_id)
         ctx = build_context(self.root, self.settings, trace_id, self._model)
-        expand_phase(ctx, node_id)
-        return self.get_graph(trace_id, depth=1)
+        expand_node(ctx, node_id)
+        return self.get_graph(trace_id, depth=node.level + 1)
 
     def get_detail(self, trace_id: str, node_id: str) -> NodeDetail:
         """Code, calls and effects always; the explanation is made on first call, then stored."""

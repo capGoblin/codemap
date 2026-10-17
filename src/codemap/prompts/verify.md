@@ -26,3 +26,7 @@ Fields: `verdict`, `evidence`, `evidence_anchors`, `suggested_callee`.
 - When unsure, answer `unsure`, not `rejected`. A lost real hop costs more than a kept wrong one.
 - Every path and line must come from a tool result. Never invent one.
 - Be short. Do not walk the callee's own code.
+
+# Skipped plumbing
+
+A skeleton hop may skip plumbing. Stage A may lead to stage B through validation, an outbox, a relay or a runner. Confirm the hop when the chain exists in the code, through the wiring or the handoff. NEVER reject a hop only because it is not a direct call. Reject only when the code shows a different target.

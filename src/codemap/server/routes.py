@@ -8,6 +8,8 @@ from codemap.server.schemas import Health
 from codemap.server.sse import event_stream
 from codemap.service import ExpandError, Service
 
+ALL_LEVELS = 99
+
 
 def make_router(service: Service) -> APIRouter:
     router = APIRouter()
@@ -36,17 +38,17 @@ def make_router(service: Service) -> APIRouter:
         return EventSourceResponse(event_stream(service, trace_id, after))
 
     @router.post("/traces/{trace_id}/nodes/{node_id}/expand")
-    def expand(trace_id: str, node_id: str) -> TraceGraph:
-        graph = service.get_graph(trace_id, 1)
+    def expand(trace_id: str, node_id: str, force: int = Query(0)) -> TraceGraph:
+        graph = service.get_graph(trace_id, ALL_LEVELS)
         if not any(n.id == node_id for n in graph.nodes):
             raise KeyError(node_id)
         has_children = any(n.parent_id == node_id for n in graph.nodes)
-        if graph.trace.mode != "lazy" and has_children:
+        if has_children and not force:
             raise HTTPException(409, "node is already expanded")
         try:
             return service.expand_node(trace_id, node_id)
         except ExpandError as exc:
-            raise HTTPException(502, f"Could not split the phase: {exc}") from exc
+            raise HTTPException(502, f"Could not split the node: {exc}") from exc
 
     @router.get("/traces/{trace_id}/nodes/{node_id}/detail")
     def detail(trace_id: str, node_id: str) -> NodeDetail:

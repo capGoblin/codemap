@@ -10,7 +10,7 @@ from codemap.agents.model import ModelError, ModelResponse
 from codemap.domain.events import Event
 from codemap.domain.models import Anchor, Trace, TraceMode
 from codemap.pipeline.context import TraceContext, build_context, prompt
-from codemap.pipeline.run import ExpandError, expand_phase, run_trace
+from codemap.pipeline.run import ExpandError, expand_node, run_trace
 from codemap.settings import Settings
 from fakes import resp, tool_use
 
@@ -70,13 +70,20 @@ class RoutedModel:
         self.walk = list(walk)
         self.phases = phases
         self.steps = steps
+        self.deepen: list[Any] = []
 
     def respond(self, *, system: str, messages: list, tools: list, max_tokens: int) -> Any:
+        if system == prompt("walk_deepen"):
+            return self.deepen.pop(0) if self.deepen else submit(done=True)
         if system == prompt("split_phases"):
             return self.phases
         if system == prompt("split_steps"):
             first = messages[0]["content"]
-            return next(r for title, r in self.steps.items() if f"Phase: {title}\n" in first)
+            return next(
+                r
+                for title, r in self.steps.items()
+                if f"Phase: {title}\n" in first or f"Step: {title}\n" in first
+            )
         return self.walk.pop(0)
 
 
@@ -150,7 +157,9 @@ def test_run_trace_events_in_order(tmp_path: Path) -> None:
     ctx, events = setup(tmp_path, full_model())
     run_trace(ctx, "q", ENTRY, "eager")
     started = [e.message for e in events if e.kind == "step_started"]
-    assert len(started) == 5
+    assert started == [
+        "walk", "split_phases", "deepen", "split_steps", "validate", "save",
+    ]  # fmt: skip
     splits = [e for e in events if e.kind == "phase_split"]
     assert len(splits) == 4
     assert all("phase_id" in e.data for e in splits)
@@ -166,18 +175,18 @@ def test_run_trace_lazy_then_expand(tmp_path: Path) -> None:
     graph = ctx.store.get_graph("t1", 1)
     assert [n.level for n in graph.nodes] == [0, 0]
     phase = graph.nodes[0]
-    children = expand_phase(ctx, phase.id)
+    children = expand_node(ctx, phase.id)
     assert [c.title for c in children] == ["accept", "queue"]
     again = ctx.store.get_graph("t1", 1)
     assert len(again.nodes) == 4
-    assert len(expand_phase(ctx, phase.id)) == 2
+    assert len(expand_node(ctx, phase.id)) == 2
     assert len(ctx.store.get_graph("t1", 1).nodes) == 4
 
 
 def test_expand_unknown_phase_raises(tmp_path: Path) -> None:
     ctx, _ = setup(tmp_path, full_model())
     with pytest.raises(KeyError):
-        expand_phase(ctx, "nope")
+        expand_node(ctx, "nope")
 
 
 def test_run_trace_non_git_repo(tmp_path: Path) -> None:
@@ -351,12 +360,12 @@ def test_expand_failure_raises_with_reason(tmp_path: Path) -> None:
     run_trace(ctx, "q", ENTRY, "lazy")
     phase = ctx.store.get_graph("t1", 0).nodes[0]
     with pytest.raises(ExpandError, match="rate limited"):
-        expand_phase(ctx, phase.id)
+        expand_node(ctx, phase.id)
 
 
 def test_hop_limit_reason_reaches_finished_event(tmp_path: Path) -> None:
     ctx, events = setup(tmp_path, full_model())
-    ctx.settings = ctx.settings.model_copy(update={"max_hops": 2})
+    ctx.settings = ctx.settings.model_copy(update={"skeleton_hops": 2})
     assert run_trace(ctx, "q", ENTRY, "eager") == "partial"
     assert "hop limit reached" in events[-1].message
 
@@ -393,3 +402,73 @@ def test_cancel_during_split_returns_fast_and_stays_partial(tmp_path: Path) -> N
     assert result == ["partial"]
     trace = ctx.store.get_trace("t1")
     assert trace is not None and trace.status == "partial"
+
+
+DEEP_PHASES = submit(phases=[phase_draft(0, 4, "all")])
+DEEP_STEPS = {
+    "all": submit(
+        steps=[
+            step_draft("intake", [UPLOAD, ACCEPT, ENQUEUE]),
+            step_draft("work", [PARSE, STORE]),
+        ]
+    ),
+    "intake": submit(steps=[step_draft("accept", [ACCEPT]), step_draft("queue", [ENQUEUE])]),
+    "accept": submit(steps=[step_draft("write row", [INSERT])]),
+}
+
+
+def deep_model() -> RoutedModel:
+    return RoutedModel(FULL_WALK, DEEP_PHASES, DEEP_STEPS)
+
+
+def test_eager_run_builds_three_levels_with_recursive_rollup(tmp_path: Path) -> None:
+    ctx, _ = setup(tmp_path, deep_model())
+    assert run_trace(ctx, "q", ENTRY, "eager") == "complete"
+    nodes = ctx.store.get_graph("t1", 9).nodes
+    by_title = {n.title: n for n in nodes}
+    assert sorted({n.level for n in nodes}) == [0, 1, 2]
+    assert by_title["accept"].level == 2 and by_title["accept"].parent_id == by_title["intake"].id
+    assert {e.target for e in by_title["accept"].effects} == {"document"}
+    assert {e.target for e in by_title["intake"].effects} == {"document"}
+    assert {e.target for e in by_title["all"].effects} == {"document", "normalized/{doc_id}"}
+
+
+def test_expand_level_two_node_builds_level_three(tmp_path: Path) -> None:
+    ctx, _ = setup(tmp_path, deep_model())
+    run_trace(ctx, "q", ENTRY, "eager")
+    accept = next(n for n in ctx.store.get_graph("t1", 9).nodes if n.title == "accept")
+    kids = expand_node(ctx, accept.id)
+    assert [k.title for k in kids] == ["write row"] and kids[0].level == 3
+    assert kids[0].parent_id == accept.id
+    assert any(n.level == 3 for n in ctx.store.get_graph("t1", 9).nodes)
+
+
+def test_expand_with_few_points_deepens_first(tmp_path: Path) -> None:
+    model = deep_model()
+    ctx, _ = setup(tmp_path, model)
+    run_trace(ctx, "q", ENTRY, "eager")
+    before = len(ctx.store.get_hops("t1"))
+    model.deepen = [hop(ACCEPT, ERR, "d1"), submit(done=True)]
+    accept = next(n for n in ctx.store.get_graph("t1", 9).nodes if n.title == "accept")
+    expand_node(ctx, accept.id)
+    hops = ctx.store.get_hops("t1")
+    assert len(hops) == before + 1 and hops[-1].callee.symbol == "insert"
+
+
+def test_deepen_limit_is_a_reason_per_phase(tmp_path: Path) -> None:
+    model = deep_model()
+    ctx, events = setup(tmp_path, model)
+    ctx.settings = ctx.settings.model_copy(update={"deepen_hops": 1})
+    # The floor is 5 hops per phase, so the script records 6.
+    model.deepen = [hop(ACCEPT, ERR, f"d{i}") for i in range(6)] + [submit(done=True)]
+    assert run_trace(ctx, "q", ENTRY, "eager") == "partial"
+    assert "deepen all: hop limit reached" in events[-1].message
+
+
+def test_lazy_run_does_not_deepen(tmp_path: Path) -> None:
+    model = deep_model()
+    model.deepen = [hop(ACCEPT, ERR, "d1")]
+    ctx, _ = setup(tmp_path, model, mode="lazy")
+    run_trace(ctx, "q", ENTRY, "lazy")
+    assert len(ctx.store.get_hops("t1")) == 4
+    assert len(model.deepen) == 1
