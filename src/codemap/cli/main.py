@@ -1,3 +1,77 @@
+"""Typer app: global options and command wiring."""
+
+from pathlib import Path
+from typing import Annotated
+
 import typer
 
+from codemap import __version__
+from codemap.cli import doctor as doctor_cmd
+from codemap.cli import open as open_cmd
+from codemap.cli import trace as trace_cmd
+from codemap.logs import setup_logging
+from codemap.service import Service
+from codemap.settings import Settings, load_settings
+
 app = typer.Typer(help="Trace one system in a codebase into a zoomable graph.")
+
+
+def make_service(repo: Path, settings: Settings) -> Service:
+    return Service(repo, settings)
+
+
+def _version(value: bool) -> None:
+    if value:
+        typer.echo(f"codemap {__version__}")
+        raise typer.Exit
+
+
+@app.callback()
+def main(
+    ctx: typer.Context,
+    repo: Annotated[Path, typer.Option(help="Repository to work in.")] = Path("."),
+    verbose: Annotated[bool, typer.Option("--verbose", help="Log at debug level.")] = False,
+    version: Annotated[
+        bool, typer.Option("--version", callback=_version, is_eager=True, help="Show version.")
+    ] = False,
+) -> None:
+    ctx.obj = (repo.resolve(), verbose)
+
+
+def _service(ctx: typer.Context, settings: Settings) -> Service:
+    repo, verbose = ctx.obj
+    setup_logging(repo, verbose, settings.anthropic_auth_token.get_secret_value())
+    return make_service(repo, settings)
+
+
+@app.command()
+def trace(
+    ctx: typer.Context,
+    question: str,
+    lazy: Annotated[bool, typer.Option(help="Build the phase level only.")] = False,
+    pick: Annotated[int | None, typer.Option(help="Entry point number; skips the prompt.")] = None,
+    json: Annotated[
+        bool, typer.Option("--json", help="Print only the graph JSON on stdout.")
+    ] = False,
+    no_open: Annotated[bool, typer.Option("--no-open", help="Do not open the browser.")] = False,
+) -> None:
+    """Trace the system that QUESTION describes."""
+    service = _service(ctx, load_settings())
+    trace_cmd.run_trace(service, question, lazy, pick, json)
+
+
+@app.command()
+def open(  # noqa: A001
+    ctx: typer.Context, trace_id: Annotated[str | None, typer.Argument()] = None
+) -> None:
+    """List saved traces for the repo."""
+    raise typer.Exit(open_cmd.list_traces(_service(ctx, load_settings()), trace_id))
+
+
+@app.command()
+def doctor(ctx: typer.Context) -> None:
+    """Check the environment, model access and database."""
+    settings = load_settings()
+    repo, verbose = ctx.obj
+    setup_logging(repo, verbose, settings.anthropic_auth_token.get_secret_value())
+    raise typer.Exit(doctor_cmd.run_doctor(settings, lambda: make_service(repo, settings)))
