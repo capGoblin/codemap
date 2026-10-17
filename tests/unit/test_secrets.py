@@ -88,3 +88,9 @@ def test_search_negated_glob_is_an_error(tools: RepoTools) -> None:
 
 def test_env_example_stays_visible(repo: Path) -> None:
     assert not RepoIgnore(repo).is_ignored(".env.example")
+
+
+def test_search_clamps_max_results(repo: Path) -> None:
+    (repo / "many.txt").write_text("hit\n" * 500)
+    out = RepoTools(repo, RepoIgnore(repo)).search("hit", None, 10_000)
+    assert len(out.splitlines()) == 200

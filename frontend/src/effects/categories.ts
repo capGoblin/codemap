@@ -1,4 +1,4 @@
-import type { Anchor, Effect, EffectCategory, EffectOp, TraceGraph } from "../api/types";
+import type { Anchor, Effect, EffectCategory, EffectOp, Node, TraceGraph } from "../api/types";
 
 export type UiCategory =
   | "db" | "object_store" | "queue_workflow" | "cache" | "file" | "external";
@@ -55,38 +55,52 @@ export type Target = {
   uses: { nodeId: string; op: EffectOp; fields: string[]; anchor: Anchor }[];
 };
 
-// Effects come from steps when a phase has steps, else from the phase itself.
-function effectNodes(graph: TraceGraph) {
-  const hasSteps = new Set(
-    graph.nodes.filter((n) => n.level > 0 && n.parent_id !== null).map((n) => n.parent_id),
-  );
-  return graph.nodes.filter((n) => !(n.level === 0 && hasSteps.has(n.id)));
+const sig = (e: Effect): string =>
+  `${targetKey(e)}|${e.op}|${e.anchor.file}:${e.anchor.start_line}-${e.anchor.end_line}`;
+
+// Effects come from steps when a phase has steps. A phase also keeps its own effects that no
+// step reports, because steps may cover only part of the phase.
+function effectUses(graph: TraceGraph): { node: Node; effect: Effect }[] {
+  const stepSigs = new Map<string, Set<string>>();
+  for (const n of graph.nodes) {
+    if (n.level > 0 && n.parent_id !== null) {
+      const set = stepSigs.get(n.parent_id) ?? new Set<string>();
+      n.effects.forEach((e) => set.add(sig(e)));
+      stepSigs.set(n.parent_id, set);
+    }
+  }
+  const out: { node: Node; effect: Effect }[] = [];
+  for (const n of graph.nodes) {
+    const covered = n.level === 0 ? stepSigs.get(n.id) : undefined;
+    for (const effect of n.effects) {
+      if (!covered?.has(sig(effect))) out.push({ node: n, effect });
+    }
+  }
+  return out;
 }
 
 export function targetsOf(graph: TraceGraph, hidden: Set<UiCategory>): Map<UiCategory, Target[]> {
   const out = new Map<UiCategory, Target[]>();
   const byKey = new Map<string, Target>();
-  for (const n of effectNodes(graph)) {
-    for (const e of n.effects) {
-      const cat = uiCategory(e.category);
-      if (hidden.has(cat)) continue;
-      const key = targetKey(e);
-      let t = byKey.get(key);
-      if (!t) {
-        t = { key, label: e.target, uses: [] };
-        byKey.set(key, t);
-        out.set(cat, [...(out.get(cat) ?? []), t]);
-      }
-      t.uses.push({ nodeId: n.id, op: e.op, fields: e.fields, anchor: e.anchor });
+  for (const { node: n, effect: e } of effectUses(graph)) {
+    const cat = uiCategory(e.category);
+    if (hidden.has(cat)) continue;
+    const key = targetKey(e);
+    let t = byKey.get(key);
+    if (!t) {
+      t = { key, label: e.target, uses: [] };
+      byKey.set(key, t);
+      out.set(cat, [...(out.get(cat) ?? []), t]);
     }
+    t.uses.push({ nodeId: n.id, op: e.op, fields: e.fields, anchor: e.anchor });
   }
   return out;
 }
 
 export function nodesTouching(graph: TraceGraph, key: string): Set<string> {
   const ids = new Set<string>();
-  for (const n of effectNodes(graph)) {
-    if (!n.effects.some((e) => targetKey(e) === key)) continue;
+  for (const { node: n, effect: e } of effectUses(graph)) {
+    if (targetKey(e) !== key) continue;
     ids.add(n.id);
     if (n.parent_id !== null) ids.add(n.parent_id);
   }

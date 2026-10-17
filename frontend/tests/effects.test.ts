@@ -62,6 +62,24 @@ describe("graph helpers", () => {
     expect(targetsOf(g, new Set()).get("cache")![0]!.uses[0]!.nodeId).toBe("P2");
   });
 
+  it("keeps phase effects that no step reports", () => {
+    const own = { ...eff("db", "orders", "write"), anchor: { ...eff("db", "x", "read").anchor, start_line: 9, end_line: 9 } };
+    const shared = eff("db", "users", "read");
+    const g2 = {
+      trace: {} as TraceGraph["trace"],
+      nodes: [
+        withEff(node("P", 0, null, 0), [shared, own]),
+        withEff(node("s", 1, "P", 0), [shared]),
+      ],
+      edges: [],
+    } as TraceGraph;
+    const t = targetsOf(g2, new Set()).get("db")!;
+    expect(t.map((x) => [x.label, x.uses.map((u) => u.nodeId)]).sort()).toEqual([
+      ["orders", ["P"]],
+      ["users", ["s"]],
+    ]);
+  });
+
   it("nodesTouching includes the parent phase", () => {
     expect([...nodesTouching(g, "object_store:s3://b")].sort()).toEqual(["P1", "s1", "s2"]);
   });

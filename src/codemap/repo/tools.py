@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from codemap.repo.index import SymbolIndex
 
 PAGE_LINES = 400
+MAX_SEARCH_RESULTS = 200
 MAX_LINE_CHARS = 2000
 BINARY_SNIFF_BYTES = 8192
 
@@ -120,6 +121,7 @@ class RepoTools:
     @_safe
     def search(self, pattern: str, glob: str | None = None, max_results: int = 50) -> str:
         re.compile(pattern)
+        max_results = max(1, min(max_results, MAX_SEARCH_RESULTS))
         if glob and glob.lstrip().startswith("!"):
             return "error: glob must not start with '!'"
         rows = (

@@ -21,6 +21,7 @@ export function NodeCard({ data, caret }: { data: CardData; caret?: string }) {
   const hasChildren = useStore((s) => s.graph?.nodes.some((x) => x.parent_id === vn.id) ?? false);
   const n = vn.node;
   const { shown, more } = chipsFor(n.effects, hidden);
+  const unavailable = n.warnings.find((w) => w.startsWith("steps unavailable"));
   return (
     <div
       className={`card ${vn.kind}${vn.open ? " open" : ""}`}
@@ -57,7 +58,25 @@ export function NodeCard({ data, caret }: { data: CardData; caret?: string }) {
           </button>
         </div>
       )}
-      {vn.kind === "phase" && vn.open && eager && !hasChildren && <div className="empty">no steps</div>}
+      {vn.kind === "phase" && vn.open && eager && !hasChildren && !expanding && !error && (
+        <div className="empty">
+          {unavailable ?? "no steps"}
+          {unavailable && (
+            <>
+              {" "}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void expandPhase(vn.id);
+                }}
+              >
+                Retry
+              </button>
+            </>
+          )}
+        </div>
+      )}
       <Handle type="source" position={Position.Right} />
     </div>
   );
