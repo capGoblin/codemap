@@ -131,3 +131,16 @@ class NodeExplain(_Frozen):
     steps: tuple[ExplainStep, ...] = ()
     input: IoSide = IoSide()
     output: IoSide = IoSide()
+
+
+class CallLink(_Frozen):
+    symbol: str
+    node_id: str | None = None
+
+
+class NodeDetail(_Frozen):
+    explain: NodeExplain | None = None
+    explain_error: str | None = None
+    functions: tuple[FunctionDetail, ...] = ()
+    calls: tuple[CallLink, ...] = ()
+    effects: tuple[Effect, ...] = ()

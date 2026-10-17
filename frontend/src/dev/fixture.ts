@@ -83,12 +83,17 @@ const detailFixtures: Record<string, FunctionDetail[]> = {
 };
 
 // Dev-only loader until the API client exists: any node without a fixture gets a stub.
-export const fixtureDetailLoader: DetailLoader = async (_traceId, nodeId) =>
-  detailFixtures[nodeId] ?? [
+export const fixtureDetailLoader: DetailLoader = async (_traceId, nodeId) => ({
+  explain: null,
+  explain_error: null,
+  calls: [],
+  effects: [],
+  functions: detailFixtures[nodeId] ?? [
     {
       anchor: anchor(nodeId),
       signature: `def ${nodeId.replace(/\W/g, "_")}(request)`,
       code: `def ${nodeId.replace(/\W/g, "_")}(request):\n    data = request.json()\n    return handle(data)`,
       calls: ["handle"],
     },
-  ];
+  ],
+});

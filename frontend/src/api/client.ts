@@ -1,4 +1,4 @@
-import type { FunctionDetail, Trace, TraceGraph } from "./types";
+import type { NodeDetail, Trace, TraceGraph } from "./types";
 
 const BASE = "/api/v1";
 
@@ -37,5 +37,5 @@ export const getGraph = (id: string, depth: number): Promise<TraceGraph> =>
 export const expandNode = (id: string, nodeId: string): Promise<TraceGraph> =>
   request(`/traces/${enc(id)}/nodes/${enc(nodeId)}/expand`, { method: "POST" });
 
-export const getDetail = (id: string, nodeId: string): Promise<FunctionDetail[]> =>
+export const getDetail = (id: string, nodeId: string): Promise<NodeDetail> =>
   request(`/traces/${enc(id)}/nodes/${enc(nodeId)}/detail`);

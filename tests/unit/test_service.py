@@ -63,6 +63,13 @@ class RoutedModel:
             submit(done=True),
         ]
         self.phases = submit(phases=[phase_draft(0, 2, "intake"), phase_draft(3, 4, "worker")])
+        self.explain = submit(
+            steps=[
+                {"text": "Inserts the document row.", "file": "app/documents.py", "lines": [12, 14]}
+            ],
+            input={"type": "File", "fields": ["name"]},
+            output={"type": "Doc", "fields": ["id", "status"]},
+        )
         self.steps = {
             "intake": submit(
                 steps=[step_draft("accept", [ACCEPT]), step_draft("queue", [ENQUEUE])]
@@ -76,6 +83,8 @@ class RoutedModel:
         if system == prompt("split_steps"):
             first = messages[0]["content"]
             return next(r for title, r in self.steps.items() if f"Phase: {title}\n" in first)
+        if system == prompt("explain"):
+            return self.explain
         return self.walk.pop(0)
 
 
@@ -171,7 +180,7 @@ def test_expand_node_and_detail(tmp_path: Path) -> None:
     phase = next(n for n in svc.get_graph(trace_id).nodes if n.title == "intake")
     graph = svc.expand_node(trace_id, phase.id)
     assert sorted(n.title for n in graph.nodes if n.level == 1) == ["accept", "queue"]
-    details = svc.get_detail(trace_id, phase.id)
+    details = svc.get_detail(trace_id, phase.id).functions
     accept = next(d for d in details if d.anchor.symbol == "accept_document")
     assert "def accept_document" in accept.code
 
@@ -230,3 +239,63 @@ def test_cancel_stops_a_running_trace_as_partial(tmp_path: Path) -> None:
     assert svc.wait(trace_id, 5) == "partial"
     last = svc.events(trace_id)[-1][1]
     assert last.kind == "finished" and last.data == {"status": "partial"}
+
+
+class CountingModel(RoutedModel):
+    def __init__(self) -> None:
+        super().__init__()
+        self.explain_calls = 0
+
+    def respond(self, *, system: str, messages: list, tools: list, max_tokens: int) -> Any:
+        if system == prompt("explain"):
+            self.explain_calls += 1
+        return super().respond(system=system, messages=messages, tools=tools, max_tokens=max_tokens)
+
+
+def test_detail_explains_once_then_reads_store(tmp_path: Path) -> None:
+    model = CountingModel()
+    svc, _ = make(tmp_path, model)
+    trace_id = trace(svc)
+    accept = next(n for n in svc.get_graph(trace_id).nodes if n.title == "accept")
+    first = svc.get_detail(trace_id, accept.id)
+    assert first.explain is not None and first.explain_error is None
+    assert first.explain.steps[0].file == "app/documents.py"
+    second = svc.get_detail(trace_id, accept.id)
+    assert second.explain == first.explain
+    assert model.explain_calls == 1
+
+
+def test_detail_model_error_keeps_deterministic_parts(tmp_path: Path) -> None:
+    model = CountingModel()
+    svc, _ = make(tmp_path, model)
+    trace_id = trace(svc)
+    svc._model = BrokenModel(ModelError("down"))  # type: ignore[assignment]
+    phase = next(n for n in svc.get_graph(trace_id).nodes if n.title == "intake")
+    detail = svc.get_detail(trace_id, phase.id)
+    assert detail.explain is None
+    assert detail.explain_error == "down"
+    assert any("def accept_document" in f.code for f in detail.functions)
+    assert [c.symbol for c in detail.calls] == [
+        "accept_document",
+        "enqueue",
+        "parse_document",
+    ]
+    graph = svc.get_graph(trace_id, 1)
+    step_ids = {n.title: n.id for n in graph.nodes if n.level == 1}
+    assert [c.node_id for c in detail.calls] == [
+        step_ids["accept"],
+        step_ids["queue"],
+        step_ids["parse"],
+    ]
+
+
+def test_regenerate_detail_makes_a_new_explain(tmp_path: Path) -> None:
+    model = CountingModel()
+    svc, _ = make(tmp_path, model)
+    trace_id = trace(svc)
+    accept = next(n for n in svc.get_graph(trace_id).nodes if n.title == "accept")
+    svc.get_detail(trace_id, accept.id)
+    svc._model = BrokenModel(ModelError("down"))  # type: ignore[assignment]
+    failed = svc.regenerate_detail(trace_id, accept.id)
+    assert failed.explain_error == "down"
+    assert failed.explain is not None  # the stored one stays

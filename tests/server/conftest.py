@@ -63,6 +63,13 @@ class RoutedModel:
             _submit(done=True),
         ]
         self.phases = _submit(phases=[_phase(0, 2, "intake"), _phase(3, 4, "worker")])
+        self.explain = _submit(
+            steps=[
+                {"text": "Inserts the document row.", "file": "app/documents.py", "lines": [12, 14]}
+            ],
+            input={"type": "File", "fields": ["name"]},
+            output={"type": "Doc", "fields": ["id", "status"]},
+        )
         self.steps = {
             "intake": _submit(steps=[_step("accept", [ACCEPT]), _step("queue", [ENQUEUE])]),
             "worker": _submit(steps=[_step("parse", [PARSE]), _step("store", [STORE])]),
@@ -74,6 +81,8 @@ class RoutedModel:
         if system == prompt("split_steps"):
             first = messages[0]["content"]
             return next(r for title, r in self.steps.items() if f"Phase: {title}\n" in first)
+        if system == prompt("explain"):
+            return self.explain
         return self.walk.pop(0)
 
 

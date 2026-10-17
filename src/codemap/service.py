@@ -11,11 +11,15 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+from codemap.agents.limits import LimitReached
 from codemap.agents.model import AnthropicModel, ChatModel, ModelError
 from codemap.domain.events import Event
 from codemap.domain.models import (
     EntryCandidate,
-    FunctionDetail,
+    Hop,
+    Node,
+    NodeDetail,
+    NodeExplain,
     Trace,
     TraceGraph,
     TraceMode,
@@ -23,6 +27,7 @@ from codemap.domain.models import (
 )
 from codemap.pipeline.context import TraceContext, build_context
 from codemap.pipeline.detail import build_detail
+from codemap.pipeline.explain import ALL_LEVELS, ExplainError, call_links, explain_node
 from codemap.pipeline.resolve import ResolveLimitError, resolve_entry
 from codemap.pipeline.run import ExpandError, expand_phase, run_trace
 from codemap.repo.anchors import is_stale
@@ -81,16 +86,18 @@ class Service:
         ctx = build_context(self.root, self.settings, "resolve", self._model)
         return resolve_entry(ctx, question)
 
-    def check_model(self) -> str | None:
-        """Send one tiny request, not cached. Return an error message, or None when it works."""
-        model = self._model or AnthropicModel(
+    def _uncached_model(self) -> ChatModel:
+        return self._model or AnthropicModel(
             self.settings.anthropic_base_url,
             self.settings.anthropic_auth_token.get_secret_value(),
             self.settings.model,
             self.settings.request_timeout_s,
         )
+
+    def check_model(self) -> str | None:
+        """Send one tiny request, not cached. Return an error message, or None when it works."""
         try:
-            model.respond(
+            self._uncached_model().respond(
                 system="Reply with ok.",
                 messages=[{"role": "user", "content": "ping"}],
                 tools=[],
@@ -197,8 +204,43 @@ class Service:
         expand_phase(ctx, node_id)
         return self.get_graph(trace_id, depth=1)
 
-    def get_detail(self, trace_id: str, node_id: str) -> list[FunctionDetail]:
+    def get_detail(self, trace_id: str, node_id: str) -> NodeDetail:
+        """Code, calls and effects always; the explanation is made on first call, then stored."""
+        return self._detail(trace_id, node_id, force=False)
+
+    def regenerate_detail(self, trace_id: str, node_id: str) -> NodeDetail:
+        """Make the explanation again. A stored one stays until the new one succeeds."""
+        return self._detail(trace_id, node_id, force=True)
+
+    def _detail(self, trace_id: str, node_id: str, force: bool) -> NodeDetail:
         node = self._store.get_node(trace_id, node_id)
         if node is None:
             raise KeyError(node_id)
-        return build_detail(self._tools, node, self._store.get_hops(trace_id))
+        hops = self._store.get_hops(trace_id)
+        explain = None if force else self._store.get_explain(trace_id, node_id)
+        error = None
+        if explain is None:
+            explain, error = self._explain(trace_id, node, hops, force)
+        if explain is None:
+            explain = self._store.get_explain(trace_id, node_id)
+        nodes = self._store.get_graph(trace_id, ALL_LEVELS).nodes
+        return NodeDetail(
+            explain=explain,
+            explain_error=error,
+            functions=tuple(build_detail(self._tools, node, hops)),
+            calls=call_links(node, nodes, hops),
+            effects=node.effects,
+        )
+
+    def _explain(
+        self, trace_id: str, node: Node, hops: list[Hop], force: bool
+    ) -> tuple[NodeExplain | None, str | None]:
+        try:
+            ctx = build_context(self.root, self.settings, trace_id, self._model)
+            if force:
+                ctx.model = self._uncached_model()  # a retry must reach the model
+            explain = explain_node(ctx, node, hops, node.effects)
+        except (ModelError, LimitReached, ExplainError) as exc:
+            return None, str(exc) or type(exc).__name__
+        self._store.save_explain(trace_id, node.id, explain)
+        return explain, None

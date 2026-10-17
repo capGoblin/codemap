@@ -60,8 +60,21 @@ def test_detail_has_code(client: TestClient, make_trace: MakeTrace) -> None:
     trace_id = make_trace("eager")
     nodes = client.get(f"/api/v1/traces/{trace_id}").json()["nodes"]
     node = next(n for n in nodes if n["title"] == "accept")
-    details = client.get(f"/api/v1/traces/{trace_id}/nodes/{node['id']}/detail").json()
-    assert any("def accept_document" in d["code"] for d in details)
+    body = client.get(f"/api/v1/traces/{trace_id}/nodes/{node['id']}/detail").json()
+    assert any("def accept_document" in d["code"] for d in body["functions"])
+    assert body["explain"]["steps"][0]["file"] == "app/documents.py"
+    assert body["explain_error"] is None
+
+
+def test_detail_regenerate(client: TestClient, make_trace: MakeTrace) -> None:
+    trace_id = make_trace("eager")
+    nodes = client.get(f"/api/v1/traces/{trace_id}").json()["nodes"]
+    node = next(n for n in nodes if n["title"] == "accept")
+    r = client.post(f"/api/v1/traces/{trace_id}/nodes/{node['id']}/detail/regenerate")
+    assert r.status_code == 200
+    assert r.json()["explain"]["steps"]
+    missing = client.post(f"/api/v1/traces/{trace_id}/nodes/nope/detail/regenerate")
+    assert missing.status_code == 404
 
 
 def test_detail_unknown_node_404(client: TestClient, make_trace: MakeTrace) -> None:
