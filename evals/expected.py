@@ -17,6 +17,7 @@ class ExpectedNode(BaseModel):
     title: str
     spans: list[Anchor]
     steps: list["ExpectedNode"] = Field(default_factory=list)
+    note: str = ""
 
 
 class ExpectedTrace(BaseModel):
@@ -26,6 +27,7 @@ class ExpectedTrace(BaseModel):
     entry: Anchor
     phases: list[ExpectedNode]
     effects: list[ExpectedEffect]
+    note: str = ""
 
 
 def _spans(nodes: list[ExpectedNode]):
