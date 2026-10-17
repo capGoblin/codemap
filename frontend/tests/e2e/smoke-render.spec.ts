@@ -28,3 +28,28 @@ test("fixture graph renders, is fitted, and opens a phase with one click", async
   await expect(page.getByTestId("node-p1.s1")).toBeVisible({ timeout: 3000 });
   expect(errors).toEqual([]);
 });
+
+test("clicking a step opens the detail panel; clicking a lane target fades others", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".react-flow__node")).not.toHaveCount(0, { timeout: 5000 });
+  await page.waitForTimeout(1000);
+  await page.getByTestId("node-p2").locator(".card-title").click();
+  await page.getByTestId("node-p2.s2").click();
+  const panel = page.getByTestId("detail-panel");
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText("db.session.commit()");
+  await expect(panel).toContainText("Code changed since this trace; snippet may not match.");
+  await page.getByLabel("Close detail").click();
+  await expect(panel).toHaveCount(0);
+
+  // "users" is only touched by p1 and its steps; p3 must fade.
+  await page.getByTestId("target-db:users").click();
+  await expect(page.getByTestId("effect-panel")).toBeVisible();
+  await expect(page.getByTestId("node-p3")).toHaveCSS("opacity", "0.3");
+  await expect(page.getByTestId("node-p1")).toHaveCSS("opacity", "1");
+
+  // Collapsing the lane must give the canvas more height.
+  const h0 = (await page.locator(".react-flow").boundingBox())!.height;
+  await page.getByLabel("Toggle effect lane").click();
+  await expect.poll(async () => (await page.locator(".react-flow").boundingBox())!.height).toBeGreaterThan(h0 + 100);
+});

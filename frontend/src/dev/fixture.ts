@@ -1,4 +1,4 @@
-import type { Anchor, Effect, EffectCategory, EffectOp, Node, TraceGraph } from "../api/types";
+import type { Anchor, DetailLoader, Effect, EffectCategory, EffectOp, FunctionDetail, Node, TraceGraph } from "../api/types";
 
 const anchor = (symbol: string): Anchor => ({
   file: "app/service.py", start_line: 1, end_line: 20, symbol, content_hash: "h",
@@ -53,3 +53,42 @@ export const fixtureGraph: TraceGraph = {
     { source_id: "p2.s1", target_id: "p2.s3", kind: "error" },
   ],
 };
+
+const saveOrderCode = `def save_order(payment, draft):
+    order = Order(user_id=draft.user_id, payment_id=payment.id)
+    db.session.add(order)
+    for item in draft.items:
+        db.session.add(OrderItem(order=order, sku=item.sku, qty=item.qty))
+    db.session.commit()
+    invoices.put(f"{order.id}.pdf", render_invoice(order))
+    audit_log.write(f"order {order.id} saved")
+    cache.set(f"orders:{order.id}", order.to_json())
+    return order.id`;
+
+const detailFixtures: Record<string, FunctionDetail[]> = {
+  "p2.s2": [
+    {
+      anchor: { ...anchor("save_order"), start_line: 48, end_line: 57 },
+      signature: "def save_order(payment: Payment, draft: OrderDraft) -> str",
+      code: saveOrderCode,
+      calls: ["Order", "OrderItem", "render_invoice", "invoices.put", "cache.set"],
+    },
+    {
+      anchor: { ...anchor("render_invoice"), start_line: 72, end_line: 75 },
+      signature: "def render_invoice(order: Order) -> bytes",
+      code: `def render_invoice(order):\n    html = template.render(order=order)\n    return pdf.from_html(html)`,
+      calls: ["template.render", "pdf.from_html"],
+    },
+  ],
+};
+
+// Dev-only loader until the API client exists: any node without a fixture gets a stub.
+export const fixtureDetailLoader: DetailLoader = async (_traceId, nodeId) =>
+  detailFixtures[nodeId] ?? [
+    {
+      anchor: anchor(nodeId),
+      signature: `def ${nodeId.replace(/\W/g, "_")}(request)`,
+      code: `def ${nodeId.replace(/\W/g, "_")}(request):\n    data = request.json()\n    return handle(data)`,
+      calls: ["handle"],
+    },
+  ];

@@ -21,6 +21,7 @@ type Actions = {
   collapseAll: () => void;
   takeCameraRequest: () => CameraRequest;
   selectNode: (id: string | null) => void;
+  focusNode: (id: string) => void;
   selectTarget: (key: string | null) => void;
   toggleCategory: (c: UiCategory) => void;
   setExpandError: (id: string, msg: string | null) => void;
@@ -55,6 +56,13 @@ export const useStore = create<State & Actions>((set, get) => ({
     return r;
   },
   selectNode: (selectedNodeId) => set({ selectedNodeId }),
+  focusNode: (id) =>
+    set((s) => {
+      const parent = s.graph?.nodes.find((n) => n.id === id)?.parent_id ?? null;
+      const openIds = new Set(s.openIds);
+      if (parent !== null) openIds.add(parent);
+      return { openIds, cameraRequest: { kind: "focus", id } };
+    }),
   selectTarget: (selectedTarget) => set({ selectedTarget }),
   toggleCategory: (c) =>
     set((s) => {

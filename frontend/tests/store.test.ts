@@ -59,3 +59,17 @@ describe("store", () => {
     expect(useStore.getState().expandErrors.has("P1")).toBe(false);
   });
 });
+
+describe("focusNode", () => {
+  beforeEach(() => useStore.setState({ graph: g, openIds: new Set(), cameraRequest: null }));
+  it("opens the parent phase of a step and requests focus", () => {
+    useStore.getState().focusNode("s1");
+    expect(useStore.getState().openIds.has("P1")).toBe(true);
+    expect(useStore.getState().cameraRequest).toEqual({ kind: "focus", id: "s1" });
+  });
+  it("only requests focus for a phase", () => {
+    useStore.getState().focusNode("P2");
+    expect(useStore.getState().openIds.size).toBe(0);
+    expect(useStore.getState().cameraRequest).toEqual({ kind: "focus", id: "P2" });
+  });
+});
