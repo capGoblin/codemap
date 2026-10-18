@@ -157,7 +157,7 @@ def test_split_steps_drops_outside_anchor(tmp_path: Path) -> None:
     assert steps[0].effects == (DB_WRITE,)
     assert steps[1].effects == ()
     user = model.requests[0]["messages"][0]["content"]
-    assert "0: app/api.py:5-8 upload" in user
+    assert "0: app/api.py:5-8 [api] upload" in user
     assert [t["name"] for t in model.requests[0]["tools"]] == ["submit"]
     assert "6: " in user and "accept_document(request.file)" in user
 
@@ -366,7 +366,7 @@ def test_split_children_at_level_two_sets_parent_and_level(tmp_path: Path) -> No
     assert reason is None
     assert [(k.level, k.parent_id, k.summary) for k in kids] == [(2, "s1", "Stores the file.")]
     user = model.requests[0]["messages"][0]["content"]
-    assert "Sub-path points:\n0: app/api.py:5-8 upload" in user
+    assert "Sub-path points:\n0: app/api.py:5-8 [api] upload" in user
 
 
 def test_subpath_points_keeps_only_inside_anchors() -> None:

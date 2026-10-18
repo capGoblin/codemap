@@ -8,6 +8,7 @@ the store, because `split_children` runs on worker threads.
 import re
 import uuid
 from collections.abc import Collection, Sequence
+from pathlib import PurePosixPath
 
 from pydantic import BaseModel, field_validator, model_validator
 
@@ -18,6 +19,7 @@ from codemap.agents.schema import tolerant_list
 from codemap.domain.models import Anchor, Edge, EdgeKind, Effect, Hop, Node
 from codemap.domain.rules import anchor_contains, anchors_overlap, assign_effects
 from codemap.pipeline.context import TraceContext, prompt
+from codemap.pipeline.orchestrators import flatten_points, orchestrator_note
 from codemap.repo.anchors import with_hash
 from codemap.repo.tools import RepoTools
 
@@ -200,6 +202,18 @@ def _list_anchors(anchors: Sequence[Anchor]) -> str:
     )
 
 
+def _stem(anchor: Anchor) -> str:
+    """The module name of the anchor's file: a hint at the pipeline stage it belongs to."""
+    return PurePosixPath(anchor.file).stem
+
+
+def _list_points(anchors: Sequence[Anchor]) -> str:
+    return "\n".join(
+        f"{i}: {a.file}:{a.start_line}-{a.end_line} [{_stem(a)}] {a.symbol}"
+        for i, a in enumerate(anchors)
+    )
+
+
 def split_phases(
     ctx: TraceContext, question: str, points: list[Anchor], effects: list[Effect]
 ) -> tuple[list[Node], str | None]:
@@ -343,7 +357,7 @@ def subpath_points(node: Node, hops: Sequence[Hop], blocked: Sequence[Anchor] = 
 def _points_text(tools: RepoTools, points: Sequence[Anchor]) -> str:
     """Numbered points, or above MANY_POINTS the signatures of the points grouped by file."""
     if len(points) <= MANY_POINTS:
-        return _list_anchors(points)
+        return _list_points(points)
     by_file: dict[str, list[Anchor]] = {}
     for a in points:
         by_file.setdefault(a.file, []).append(a)
@@ -353,7 +367,7 @@ def _points_text(tools: RepoTools, points: Sequence[Anchor]) -> str:
         for a in anchors:
             first = (_anchor_lines(tools, a) or [""])[0].strip()[:SIG_CHARS]
             rows.append(f"  {a.start_line}-{a.end_line} {a.symbol}: {first}")
-        blocks.append(f"{file}\n" + "\n".join(rows))
+        blocks.append(f"{file} [{_stem(anchors[0])}]\n" + "\n".join(rows))
     return "\n".join(blocks)
 
 
@@ -370,10 +384,18 @@ def split_children(
 ) -> tuple[list[Node], str | None]:
     """Return (children at parent.level + 1, failure reason). Safe on a worker thread."""
     kind = "Phase" if parent.level == 0 else "Step"
+    points, orchestrators = flatten_points(ctx.tools, points, effects)
+    folded = (
+        f"Orchestrators folded away (not children; their callees are the points below):\n"
+        f"{orchestrator_note(orchestrators)}\n\n"
+        if orchestrators
+        else ""
+    )
     user = (
         f"{kind}: {parent.title}\n{parent.summary}\n{parent.does}\n"
         f"Input: {parent.input}\nOutput: {parent.output}\n\n"
         f"Parent anchors:\n{_list_anchors(parent.anchors)}\n\n"
+        f"{folded}"
         f"Sub-path points:\n{_points_text(ctx.tools, points)}\n\n"
         f"Parent code:\n{_parent_code(ctx.tools, parent, points)}"
     )
