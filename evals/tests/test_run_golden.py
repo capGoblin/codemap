@@ -68,9 +68,11 @@ class ScriptedModel:
             return reply("submit", {"done": True}, "d")
         if system == prompt("split_phases"):
             return reply("submit", {"phases": [phase(0, 2, "intake"), phase(3, 4, "worker")]}, "p")
+        if system == prompt("phase_effects"):
+            return reply("submit", {"effects": []}, "e")
         if system == prompt("split_steps"):
             first = messages[0]["content"]
-            steps = next(v for k, v in self.steps.items() if f"Phase: {k}\n" in first)
+            steps = next((v for k, v in self.steps.items() if f"Phase: {k}\n" in first), [])
             return reply("submit", {"steps": steps}, "t")
         return self.walk.pop(0)
 

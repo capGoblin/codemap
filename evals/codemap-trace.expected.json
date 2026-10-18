@@ -4,8 +4,8 @@
   "question": "How does codemap trace a system, from the trace command to the saved graph?",
   "entry": {
     "file": "src/codemap/cli/main.py",
-    "start_line": 48,
-    "end_line": 64,
+    "start_line": 77,
+    "end_line": 93,
     "symbol": "trace"
   },
   "phases": [
@@ -15,8 +15,8 @@
       "spans": [
         {
           "file": "src/codemap/cli/main.py",
-          "start_line": 48,
-          "end_line": 64,
+          "start_line": 77,
+          "end_line": 93,
           "symbol": "trace"
         },
         {
@@ -27,14 +27,14 @@
         },
         {
           "file": "src/codemap/service.py",
-          "start_line": 112,
-          "end_line": 135,
+          "start_line": 108,
+          "end_line": 131,
           "symbol": "start_trace"
         },
         {
           "file": "src/codemap/service.py",
-          "start_line": 137,
-          "end_line": 146,
+          "start_line": 133,
+          "end_line": 142,
           "symbol": "_run"
         }
       ],
@@ -45,8 +45,8 @@
           "spans": [
             {
               "file": "src/codemap/cli/main.py",
-              "start_line": 48,
-              "end_line": 64,
+              "start_line": 77,
+              "end_line": 93,
               "symbol": "trace"
             },
             {
@@ -64,8 +64,8 @@
           "spans": [
             {
               "file": "src/codemap/service.py",
-              "start_line": 112,
-              "end_line": 135,
+              "start_line": 108,
+              "end_line": 131,
               "symbol": "start_trace"
             }
           ],
@@ -77,8 +77,8 @@
           "spans": [
             {
               "file": "src/codemap/service.py",
-              "start_line": 129,
-              "end_line": 146,
+              "start_line": 125,
+              "end_line": 142,
               "symbol": "_run"
             }
           ],
@@ -92,8 +92,8 @@
       "spans": [
         {
           "file": "src/codemap/service.py",
-          "start_line": 84,
-          "end_line": 87,
+          "start_line": 85,
+          "end_line": 88,
           "symbol": "resolve"
         },
         {

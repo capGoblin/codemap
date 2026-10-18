@@ -42,7 +42,8 @@ def test_run_smoke_reports_a_scripted_trace(tmp_path: Path) -> None:
     assert len(rows) == 1
     row = rows[0]
     assert row.status == "complete"
-    assert (row.phases, row.steps, row.hops) == (2, 4, 4)
+    assert (row.phases, row.steps) == (2, 4)
+    assert row.hops >= 4  # walk hops plus static call expansion
     assert row.files_read >= 4
 
     results = tmp_path / "notes" / "eval-results.md"

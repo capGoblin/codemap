@@ -60,5 +60,5 @@ packages = ["codemap"]
 exclude = ["tests/fixtures/"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "evals/tests"]
 pythonpath = ["src"]

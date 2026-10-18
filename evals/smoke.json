@@ -2,12 +2,22 @@
  {
   "repo": ".",
   "question": "How does codemap trace a system, from the trace command to the saved graph?",
-  "entry": {"file": "src/codemap/cli/main.py", "start_line": 48, "end_line": 64, "symbol": "trace"},
+  "entry": {
+   "file": "src/codemap/cli/main.py",
+   "start_line": 77,
+   "end_line": 93,
+   "symbol": "trace"
+  },
   "note": "A relative repo path resolves against the codemap checkout. To add your own repo, append an entry with an absolute repo path."
  },
  {
   "repo": "tests/fixtures/sample_repo",
   "question": "How does the sample app handle one uploaded document, from the API to storage?",
-  "entry": {"file": "app/api.py", "start_line": 5, "end_line": 8, "symbol": "upload"}
+  "entry": {
+   "file": "app/api.py",
+   "start_line": 5,
+   "end_line": 8,
+   "symbol": "upload"
+  }
  }
 ]

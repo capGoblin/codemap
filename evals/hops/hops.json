@@ -9,15 +9,15 @@
   },
   "callee": {
    "file": "src/codemap/cli/main.py",
-   "start_line": 48,
-   "end_line": 64,
+   "start_line": 77,
+   "end_line": 93,
    "symbol": "trace"
   },
   "kind": "call",
   "wiring": {
    "file": "src/codemap/cli/main.py",
-   "start_line": 48,
-   "end_line": 48,
+   "start_line": 77,
+   "end_line": 77,
    "symbol": "command"
   },
   "real": true,
@@ -34,15 +34,15 @@
   },
   "callee": {
    "file": "src/codemap/cli/main.py",
-   "start_line": 75,
-   "end_line": 84,
+   "start_line": 115,
+   "end_line": 124,
    "symbol": "doctor"
   },
   "kind": "call",
   "wiring": {
    "file": "src/codemap/cli/main.py",
-   "start_line": 74,
-   "end_line": 74,
+   "start_line": 114,
+   "end_line": 114,
    "symbol": "command"
   },
   "real": true,
@@ -59,15 +59,15 @@
   },
   "callee": {
    "file": "src/codemap/cli/main.py",
-   "start_line": 87,
-   "end_line": 93,
+   "start_line": 127,
+   "end_line": 132,
    "symbol": "serve_dev_cmd"
   },
   "kind": "call",
   "wiring": {
    "file": "src/codemap/cli/main.py",
-   "start_line": 86,
-   "end_line": 86,
+   "start_line": 126,
+   "end_line": 126,
    "symbol": "command"
   },
   "real": true,
@@ -78,21 +78,21 @@
   "repo": "codemap",
   "caller": {
    "file": "src/codemap/cli/main.py",
-   "start_line": 30,
-   "end_line": 40,
+   "start_line": 31,
+   "end_line": 69,
    "symbol": "main"
   },
   "callee": {
    "file": "src/codemap/cli/main.py",
-   "start_line": 24,
-   "end_line": 27,
+   "start_line": 25,
+   "end_line": 28,
    "symbol": "_version"
   },
   "kind": "call",
   "wiring": {
    "file": "src/codemap/cli/main.py",
-   "start_line": 33,
-   "end_line": 36,
+   "start_line": 34,
+   "end_line": 51,
    "symbol": "_version"
   },
   "real": true,
@@ -103,21 +103,21 @@
   "repo": "codemap",
   "caller": {
    "file": "src/codemap/service.py",
-   "start_line": 112,
-   "end_line": 135,
+   "start_line": 108,
+   "end_line": 131,
    "symbol": "start_trace"
   },
   "callee": {
    "file": "src/codemap/service.py",
-   "start_line": 137,
-   "end_line": 146,
+   "start_line": 133,
+   "end_line": 142,
    "symbol": "_run"
   },
   "kind": "async",
   "wiring": {
    "file": "src/codemap/service.py",
-   "start_line": 129,
-   "end_line": 131,
+   "start_line": 125,
+   "end_line": 127,
    "symbol": "Thread"
   },
   "real": true,
@@ -216,8 +216,8 @@
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 74,
-   "end_line": 80,
+   "start_line": 91,
+   "end_line": 97,
    "symbol": "read_file"
   },
   "real": true,
@@ -241,8 +241,8 @@
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 81,
-   "end_line": 86,
+   "start_line": 98,
+   "end_line": 103,
    "symbol": "search"
   },
   "real": true,
@@ -266,8 +266,8 @@
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 87,
-   "end_line": 92,
+   "start_line": 104,
+   "end_line": 109,
    "symbol": "find_definition"
   },
   "real": true,
@@ -291,8 +291,8 @@
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 100,
-   "end_line": 104,
+   "start_line": 117,
+   "end_line": 121,
    "symbol": "prompt"
   },
   "real": true,
@@ -316,8 +316,8 @@
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 100,
-   "end_line": 104,
+   "start_line": 117,
+   "end_line": 121,
    "symbol": "prompt"
   },
   "real": true,
@@ -341,8 +341,8 @@
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 100,
-   "end_line": 104,
+   "start_line": 117,
+   "end_line": 121,
    "symbol": "prompt"
   },
   "real": true,
@@ -366,8 +366,8 @@
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 100,
-   "end_line": 104,
+   "start_line": 117,
+   "end_line": 121,
    "symbol": "prompt"
   },
   "real": true,
@@ -541,8 +541,8 @@
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 147,
-   "end_line": 150,
+   "start_line": 164,
+   "end_line": 167,
    "symbol": "add_event"
   },
   "real": true,
@@ -559,15 +559,15 @@
   },
   "callee": {
    "file": "src/codemap/agents/recording.py",
-   "start_line": 52,
-   "end_line": 69,
+   "start_line": 64,
+   "end_line": 81,
    "symbol": "CachedModel.respond"
   },
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 143,
-   "end_line": 143,
+   "start_line": 160,
+   "end_line": 160,
    "symbol": "CachedModel"
   },
   "real": true,
@@ -703,21 +703,21 @@
   "repo": "codemap",
   "caller": {
    "file": "src/codemap/service.py",
-   "start_line": 112,
-   "end_line": 135,
+   "start_line": 108,
+   "end_line": 131,
    "symbol": "start_trace"
   },
   "callee": {
    "file": "src/codemap/service.py",
-   "start_line": 148,
-   "end_line": 165,
+   "start_line": 144,
+   "end_line": 161,
    "symbol": "_fail"
   },
   "kind": "async",
   "wiring": {
    "file": "src/codemap/service.py",
-   "start_line": 129,
-   "end_line": 131,
+   "start_line": 125,
+   "end_line": 127,
    "symbol": "Thread"
   },
   "real": false,
@@ -791,8 +791,8 @@
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 74,
-   "end_line": 80,
+   "start_line": 91,
+   "end_line": 97,
    "symbol": "read_file"
   },
   "real": false,
@@ -816,8 +816,8 @@
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 87,
-   "end_line": 92,
+   "start_line": 104,
+   "end_line": 109,
    "symbol": "find_definition"
   },
   "real": false,
@@ -841,8 +841,8 @@
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 100,
-   "end_line": 104,
+   "start_line": 117,
+   "end_line": 121,
    "symbol": "prompt"
   },
   "real": false,
@@ -866,8 +866,8 @@
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 100,
-   "end_line": 104,
+   "start_line": 117,
+   "end_line": 121,
    "symbol": "prompt"
   },
   "real": false,
@@ -891,8 +891,8 @@
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 100,
-   "end_line": 104,
+   "start_line": 117,
+   "end_line": 121,
    "symbol": "prompt"
   },
   "real": false,
@@ -916,8 +916,8 @@
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 100,
-   "end_line": 104,
+   "start_line": 117,
+   "end_line": 121,
    "symbol": "prompt"
   },
   "real": false,
@@ -941,8 +941,8 @@
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 147,
-   "end_line": 150,
+   "start_line": 164,
+   "end_line": 167,
    "symbol": "add_event"
   },
   "real": false,
@@ -959,15 +959,15 @@
   },
   "callee": {
    "file": "src/codemap/agents/recording.py",
-   "start_line": 72,
-   "end_line": 86,
+   "start_line": 85,
+   "end_line": 99,
    "symbol": "ReplayOnlyModel.respond"
   },
   "kind": "call",
   "wiring": {
    "file": "src/codemap/pipeline/context.py",
-   "start_line": 143,
-   "end_line": 143,
+   "start_line": 160,
+   "end_line": 160,
    "symbol": "CachedModel"
   },
   "real": false,
