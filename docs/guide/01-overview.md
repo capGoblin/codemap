@@ -14,7 +14,7 @@ cli ──► server ──► service ──► pipeline ──► store / repo
 
 | Layer | Folder | Job |
 | --- | --- | --- |
-| cli | `src/codemap/cli/` | Typer commands: `trace`, `open`, `doctor`, hidden `serve-dev`. Prints, prompts, follows progress. No logic. |
+| cli | `src/codemap/cli/` | Typer commands: `trace`, `list`, `open`, `doctor`, hidden `serve-dev`. Prints, prompts, follows progress. No logic. |
 | server | `src/codemap/server/` | FastAPI `/api/v1`, SSE events, serves built UI. Thin. |
 | service | `src/codemap/service.py` | The ONE app API. CLI and server call only this. Owns threads per trace, git info, staleness. |
 | pipeline | `src/codemap/pipeline/` | The trace steps: resolve, walk, verify, expand, effects, split, validate, explain, run. |

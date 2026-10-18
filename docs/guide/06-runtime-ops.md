@@ -2,7 +2,7 @@
 
 ## Model
 
-The configured model, from OpenAI or Anthropic (default `gpt-5-nano`; `CODEMAP_MODEL` overrides). See `settings.py` and `agents/model.py`. Every call goes through `CachedModel` → `model_calls` table: same request = free replay.
+OpenAI or Anthropic, picked by `--provider` / `CODEMAP_PROVIDER` (default `openai`, model `gpt-5-nano`; Anthropic default `claude-haiku-5-5`). Key: `--api-key`, `CODEMAP_API_KEY`, else `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`. `--base-url` for compatible endpoints. Clients: `agents/providers.py` (`make_model`); the internal message format is Anthropic's, and `OpenAIModel` translates it to Chat Completions. Prices: `agents/pricing.py` (unknown model → cost cap off, doctor warns). Every call goes through `CachedModel` → `model_calls` table: same request = free replay.
 
 ## Budgets — `agents/limits.py`, `settings.py`
 
@@ -43,11 +43,12 @@ tree-sitter (`tree-sitter` 0.25.x, `tree-sitter-language-pack` 0.13.x — bundle
 | Command | Does |
 | --- | --- |
 | `codemap trace "<q>" [--pick N] [--lazy] [--json] [--no-open]` | resolve → pick → trace → open browser (Ctrl-C = partial) |
+| `codemap list` | table of saved traces |
 | `codemap open [TRACE_ID]` | list / serve a saved trace |
 | `codemap doctor` | env, model reachable, ripgrep, DB schema, Python |
 | `codemap serve-dev [--port] [--static]` | hidden; API for frontend dev |
 
-Global: `--repo PATH`, `--verbose`, `--version`.
+Global (before the command): `--repo PATH`, `--provider`, `--model`, `--api-key`, `--base-url`, `--max-cost`, `--verbose`, `--version`.
 
 ## Evals — `evals/`
 
