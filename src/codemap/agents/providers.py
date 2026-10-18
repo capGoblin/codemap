@@ -158,7 +158,8 @@ def _assistant(blocks: list[dict[str, Any]]) -> dict[str, Any]:
         for b in blocks
         if b["type"] == "tool_use"
     ]
-    out: dict[str, Any] = {"role": "assistant", "content": text or None}
+    # null content is valid only next to tool calls; an empty turn must still send a string
+    out: dict[str, Any] = {"role": "assistant", "content": text or (None if calls else "")}
     if calls:
         out["tool_calls"] = calls
     return out

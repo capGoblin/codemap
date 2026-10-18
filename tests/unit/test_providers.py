@@ -159,3 +159,9 @@ def test_make_model_missing_key_names_the_var(monkeypatch: pytest.MonkeyPatch) -
         make_model(Settings())
     with pytest.raises(ModelError, match="ANTHROPIC_API_KEY"):
         make_model(Settings(provider="anthropic"))
+
+
+def test_empty_assistant_turn_sends_empty_string() -> None:
+    # a reasoning model can spend its whole output budget and return no text and no tool call
+    out = to_openai_messages("s", [{"role": "assistant", "content": []}])
+    assert out[1] == {"role": "assistant", "content": ""}

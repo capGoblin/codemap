@@ -6,3 +6,4 @@ node_modules/
 dist/
 .superpowers/
 evals/recordings/*.json
+.claude/
