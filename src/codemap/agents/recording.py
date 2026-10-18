@@ -9,9 +9,20 @@ from codemap.agents.model import ChatModel, ModelError, ModelResponse
 
 
 def request_key(
-    system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]], max_tokens: int
+    model_id: str,
+    system: str,
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]],
+    max_tokens: int,
 ) -> str:
-    payload = {"system": system, "messages": messages, "tools": tools, "max_tokens": max_tokens}
+    """Hash of the request. `model_id` (provider and model) keeps models from sharing replays."""
+    payload = {
+        "model": model_id,
+        "system": system,
+        "messages": messages,
+        "tools": tools,
+        "max_tokens": max_tokens,
+    }
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(canonical.encode()).hexdigest()
 
@@ -45,9 +56,10 @@ class JsonFileCache:
 
 
 class CachedModel:
-    def __init__(self, inner: ChatModel, cache: CallCache) -> None:
+    def __init__(self, inner: ChatModel, cache: CallCache, model_id: str) -> None:
         self._inner = inner
         self._cache = cache
+        self._model_id = model_id
 
     def respond(
         self,
@@ -57,7 +69,7 @@ class CachedModel:
         tools: list[dict[str, Any]],
         max_tokens: int,
     ) -> ModelResponse:
-        key = request_key(system, messages, tools, max_tokens)
+        key = request_key(self._model_id, system, messages, tools, max_tokens)
         hit = self._cache.get(key)
         if hit is not None:
             return hit
@@ -69,8 +81,9 @@ class CachedModel:
 
 
 class ReplayOnlyModel:
-    def __init__(self, cache: CallCache) -> None:
+    def __init__(self, cache: CallCache, model_id: str) -> None:
         self._cache = cache
+        self._model_id = model_id
 
     def respond(
         self,
@@ -80,7 +93,7 @@ class ReplayOnlyModel:
         tools: list[dict[str, Any]],
         max_tokens: int,
     ) -> ModelResponse:
-        hit = self._cache.get(request_key(system, messages, tools, max_tokens))
+        hit = self._cache.get(request_key(self._model_id, system, messages, tools, max_tokens))
         if hit is None:
             raise ModelError("no recording")
         return hit

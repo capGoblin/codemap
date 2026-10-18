@@ -35,7 +35,7 @@ class RedactFilter(logging.Filter):
 def setup_logging(root: Path, verbose: bool, token: str | None = None) -> None:
     """Log to `root/.codemap/logs/codemap.log`. `token` defaults to the configured one."""
     if token is None:
-        token = load_settings().anthropic_auth_token.get_secret_value()
+        token = load_settings().resolved_api_key()
     path = root / ".codemap" / "logs" / "codemap.log"
     path.parent.mkdir(parents=True, exist_ok=True)
     handler = RotatingFileHandler(path, maxBytes=_MAX_BYTES, backupCount=_BACKUPS, encoding="utf-8")

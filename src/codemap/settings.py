@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from typing import Literal
 
 import platformdirs
 from pydantic import AliasChoices, Field, SecretStr
@@ -12,7 +13,9 @@ from pydantic_settings import (
     TomlConfigSettingsSource,
 )
 
-DEFAULT_MODEL = "MiniMax-M3"
+Provider = Literal["openai", "anthropic"]
+DEFAULT_MODELS: dict[str, str] = {"openai": "gpt-5-nano", "anthropic": "claude-haiku-5-5"}
+FALLBACK_KEY_VARS: dict[str, str] = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
 
 
 def config_path() -> Path:
@@ -23,16 +26,19 @@ def config_path() -> Path:
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True, env_prefix="CODEMAP_")
 
-    anthropic_base_url: str = "https://api.minimax.io/anthropic"
-    anthropic_auth_token: SecretStr = SecretStr("")
-    model: str = Field(DEFAULT_MODEL, validation_alias=AliasChoices("CODEMAP_MODEL", "model"))
-    price_in_per_mtok: float = 0.30
-    price_out_per_mtok: float = 1.20
+    provider: Provider = "openai"
+    api_key: SecretStr = SecretStr("")
+    model: str | None = None
+    base_url: str | None = None
+    price_in_per_mtok: float | None = None
+    price_out_per_mtok: float | None = None
     max_wall_seconds: int = 900
     max_tokens_total: int = 2_000_000
-    max_cost_usd: float = 5.0
+    max_cost_usd: float = Field(
+        5.0, validation_alias=AliasChoices("CODEMAP_MAX_COST", "max_cost_usd")
+    )
     max_tool_calls: int = 400
     max_hops: int = 200
     skeleton_hops: int = 40
@@ -43,6 +49,21 @@ class Settings(BaseSettings):
     build_max_tool_calls: int = 300
     split_concurrency: int = 4
     request_timeout_s: float = 120
+
+    @property
+    def resolved_model(self) -> str:
+        return self.model or DEFAULT_MODELS[self.provider]
+
+    @property
+    def model_id(self) -> str:
+        """Provider and model, for cache keys."""
+        return f"{self.provider}/{self.resolved_model}"
+
+    def resolved_api_key(self) -> str:
+        """The configured key, else the provider's own env var, else empty."""
+        return self.api_key.get_secret_value() or os.environ.get(
+            FALLBACK_KEY_VARS[self.provider], ""
+        )
 
     @classmethod
     def settings_customise_sources(

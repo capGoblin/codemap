@@ -8,7 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from codemap.agents.model import AnthropicModel, ChatModel
+from codemap.agents.model import ChatModel
+from codemap.agents.providers import make_model
 from codemap.agents.recording import CachedModel, JsonFileCache, ReplayOnlyModel
 from codemap.domain.models import EntryCandidate
 from codemap.service import Service
@@ -46,17 +47,9 @@ def run_golden(expected_path: Path, *, record: bool, model: ChatModel | None = N
             RECORDINGS / f"{expected_path.name.removesuffix('.expected.json')}.json"
         )
         if record:
-            model = CachedModel(
-                AnthropicModel(
-                    settings.anthropic_base_url,
-                    settings.anthropic_auth_token.get_secret_value(),
-                    settings.model,
-                    settings.request_timeout_s,
-                ),
-                cache,
-            )
+            model = CachedModel(make_model(settings), cache, settings.model_id)
         else:
-            model = ReplayOnlyModel(cache)
+            model = ReplayOnlyModel(cache, settings.model_id)
 
     service = Service(root, settings, model)
     entry = EntryCandidate(anchor=expected.entry, label="golden", reason="pinned")

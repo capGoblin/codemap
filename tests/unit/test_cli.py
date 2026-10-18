@@ -24,7 +24,9 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     path = tmp_path / "repo"
     shutil.copytree(FIXTURE, path)
     monkeypatch.setenv("CODEMAP_CONFIG_FILE", str(tmp_path / "none.toml"))
-    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", TOKEN)
+    for var in ("CODEMAP_PROVIDER", "CODEMAP_MODEL", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("CODEMAP_API_KEY", TOKEN)
     return path
 
 
@@ -169,11 +171,11 @@ def test_open_empty(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_doctor_missing_env_fails(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN")
+    monkeypatch.delenv("CODEMAP_API_KEY")
     use_model(monkeypatch, BrokenModel(RuntimeError("must not be called")))
     result = run(repo, "doctor")
     assert result.exit_code == 1
-    assert "ANTHROPIC_AUTH_TOKEN" in result.output
+    assert "OPENAI_API_KEY" in result.output
     assert "sk-" not in result.output
 
 
@@ -183,8 +185,41 @@ def test_doctor_all_pass_hides_token(repo: Path, monkeypatch: pytest.MonkeyPatch
     use_model(monkeypatch, model)
     result = run(repo, "doctor")
     assert TOKEN not in result.output
-    assert "model" in result.output
+    for row in ("provider", "api key", "model", "price"):
+        assert row in result.output
     assert result.exit_code == 0, result.output
+
+
+def test_doctor_warns_on_unknown_price(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    use_model(monkeypatch, RoutedModel())
+    result = run(repo, "--model", "mystery-1", "doctor")
+    assert "price unknown" in result.output
+    assert TOKEN not in result.output
+
+
+def test_doctor_flag_key_is_not_printed(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEMAP_API_KEY")
+    use_model(monkeypatch, RoutedModel())
+    result = run(repo, "--api-key", "sk-from-flag", "doctor")
+    assert "sk-from-flag" not in result.output
+    assert "api key" in result.output
+
+
+def test_list_empty(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    use_model(monkeypatch, RoutedModel())
+    result = run(repo, "list")
+    assert result.exit_code == 0
+    assert 'No traces yet. Run: codemap trace "<system>"' in result.output
+
+
+def test_list_shows_traces_with_cost(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    use_model(monkeypatch, RoutedModel())
+    run(repo, "trace", "app/api.py:upload", "--pick", "1", "--no-open")
+    trace_id = Service(repo, Settings(), None).list_traces()[0].id
+    result = run(repo, "list")
+    assert result.exit_code == 0
+    assert trace_id in result.output
+    assert "cost" in result.output
 
 
 def test_doctor_model_failure_exit_1(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:

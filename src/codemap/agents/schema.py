@@ -6,7 +6,7 @@ from pydantic import field_validator
 
 
 def _unwrap_item(value: Any) -> Any:
-    """MiniMax sometimes sends a list as {"item": x} or {"item": [x, y]}. Unwrap it."""
+    """Some models wrap a list as {"item": x} or {"item": [x, y]}. Unwrap it."""
     if isinstance(value, dict) and set(value) == {"item"}:
         inner = value["item"]
         return inner if isinstance(inner, list) else [inner]

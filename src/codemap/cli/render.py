@@ -22,7 +22,7 @@ def candidates_table(candidates: list[EntryCandidate]) -> Table:
 def traces_table(traces: list[Trace]) -> Table:
     table = Table(title="Traces")
     table.add_column("id", no_wrap=True)
-    for name in ("created", "status", "question"):
+    for name in ("created", "status", "cost", "question"):
         table.add_column(name)
     for t in traces:
         style = STATUS_STYLE[t.status]
@@ -30,6 +30,7 @@ def traces_table(traces: list[Trace]) -> Table:
             t.id,
             t.created_at.strftime("%Y-%m-%d %H:%M"),
             f"[{style}]{t.status}[/{style}]",
+            f"${t.cost_usd:.4f}",
             t.question,
         )
     return table

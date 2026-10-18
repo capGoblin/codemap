@@ -1,5 +1,6 @@
 """Pipeline context, the read-only tool set shared by every agent, and prompt loading."""
 
+import logging
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -9,7 +10,9 @@ from typing import Any
 
 from codemap.agents.limits import Budget, Limits
 from codemap.agents.loop import Tool
-from codemap.agents.model import AnthropicModel, ChatModel
+from codemap.agents.model import ChatModel
+from codemap.agents.pricing import price_for
+from codemap.agents.providers import make_model
 from codemap.agents.recording import CachedModel
 from codemap.domain.events import Event
 from codemap.repo.ignore import RepoIgnore
@@ -19,6 +22,20 @@ from codemap.settings import Settings
 from codemap.store.caches import SqliteCallCache, SqliteSymbolCache, SqliteVerdictCache
 from codemap.store.db import open_db
 from codemap.store.traces import TraceStore
+
+log = logging.getLogger(__name__)
+_warned_models: set[str] = set()
+
+
+def _warn_price_unknown(model: str) -> None:
+    """Warn once per model: without a price the cost limit cannot stop a run."""
+    if model not in _warned_models:
+        _warned_models.add(model)
+        log.warning(
+            "price unknown for %s: set price_in_per_mtok / price_out_per_mtok; "
+            "the cost limit is not enforced",
+            model,
+        )
 
 
 @dataclass
@@ -126,21 +143,21 @@ def build_context(
         max_tool_calls=settings.build_max_tool_calls,
     )
     cancel = cancel or threading.Event()
-    prices = (settings.price_in_per_mtok, settings.price_out_per_mtok)
-    walk_budget = Budget(limits, *prices, cancel=cancel)
-    build_budget = Budget(build_limits, *prices, cancel=cancel)
-    inner = model or AnthropicModel(
-        settings.anthropic_base_url,
-        settings.anthropic_auth_token.get_secret_value(),
-        settings.model,
-        settings.request_timeout_s,
+    prices = price_for(
+        settings.resolved_model, settings.price_in_per_mtok, settings.price_out_per_mtok
     )
+    if prices is None:
+        _warn_price_unknown(settings.resolved_model)
+    price_in, price_out = prices or (None, None)
+    walk_budget = Budget(limits, price_in, price_out, cancel=cancel)
+    build_budget = Budget(build_limits, price_in, price_out, cancel=cancel)
+    inner = model or make_model(settings)
     tools = RepoTools(root, RepoIgnore(root))
     tools.index = SymbolIndex(tools, SqliteSymbolCache(conn))
     return TraceContext(
         root=root,
         tools=tools,
-        model=CachedModel(inner, SqliteCallCache(conn)),
+        model=CachedModel(inner, SqliteCallCache(conn), settings.model_id),
         walk_budget=walk_budget,
         build_budget=build_budget,
         store=store,

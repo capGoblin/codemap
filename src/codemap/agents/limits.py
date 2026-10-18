@@ -23,13 +23,16 @@ class LimitReached(Exception):  # noqa: N818 - name fixed by the plan
 
 
 class Budget:
-    """Shared by concurrent steps, so every update takes the lock. Prices are USD per MTok."""
+    """Shared by concurrent steps, so every update takes the lock.
+
+    Prices are USD per MTok. With no price the cost stays 0 and the cost limit is skipped.
+    """
 
     def __init__(
         self,
         limits: Limits,
-        price_in: float,
-        price_out: float,
+        price_in: float | None,
+        price_out: float | None,
         clock: Callable[[], float] = time.monotonic,
         cancel: threading.Event | None = None,
     ) -> None:
@@ -69,6 +72,8 @@ class Budget:
             return self._cost()
 
     def _cost(self) -> float:
+        if self._price_in is None or self._price_out is None:
+            return 0.0
         return (self._input * self._price_in + self._output * self._price_out) / 1_000_000
 
     def exhausted(self) -> bool:

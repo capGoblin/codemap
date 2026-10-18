@@ -17,6 +17,7 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
     "sse-starlette>=2.1",
+    "openai>=3.35.1",
 ]
 
 [project.scripts]
