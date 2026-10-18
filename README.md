@@ -4,9 +4,11 @@ Trace one system in a codebase into a graph you can zoom into.
 
 You name a system ("the checkout flow", "how a request is authenticated") or an entry point. codemap follows the real code path with an LLM agent, cuts it into the system's stages, and shows them in a browser canvas. Open a stage to see its steps. Open a step to see its sub-steps, down to the code. Every node shows what it reads and writes: database tables and fields, object stores, queues, caches, files and HTTP calls.
 
-[![codemap tracing its own pipeline](docs/assets/demo.gif)](docs/assets/demo.mp4)
 
-*Click for the full-quality video (36s).*
+
+https://github.com/user-attachments/assets/5ba84fca-c8b6-4546-ab5d-07b4e96d1289
+
+
 
 *codemap tracing its own pipeline: `codemap trace "How does codemap trace a system, from the trace command to the saved graph?"`*
 
