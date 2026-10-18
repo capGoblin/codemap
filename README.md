@@ -1,96 +1,68 @@
-# codemap
+<h1 align="center">codemap</h1>
 
-Trace one system in a codebase into a graph you can zoom into.
+<p align="center">
+  <b>Ask how a flow works in a codebase. Get a map you can zoom into, down to the code.</b>
+</p>
 
-You name a system ("the checkout flow", "how a request is authenticated") or an entry point. codemap follows the real code path with an LLM agent, cuts it into the system's stages, and shows them in a browser canvas. Open a stage to see its steps. Open a step to see its sub-steps, down to the code. Every node shows what it reads and writes: database tables and fields, object stores, queues, caches, files and HTTP calls.
-
-
+<p align="center">
+  <a href="https://github.com/capGoblin/codemap/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/capGoblin/codemap/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-blue.svg">
+  <img alt="Runs locally" src="https://img.shields.io/badge/runs-locally-brightgreen.svg">
+</p>
 
 https://github.com/user-attachments/assets/5ba84fca-c8b6-4546-ab5d-07b4e96d1289
 
-
-
-*codemap tracing its own pipeline: `codemap trace "How does codemap trace a system, from the trace command to the saved graph?"`*
-
-- **Any language.** tree-sitter grammars are bundled, and files without a grammar fall back to plain search.
-- **Real hops only.** A separate verifier agent checks each indirect hop (string dispatch, registries, queues, callbacks) before it goes in the graph.
-- **Local.** Traces live in SQLite inside the repo (`.codemap/`). The UI server binds `127.0.0.1`. The only data that leaves your machine is the model call.
-- **Bring your own key.** OpenAI or Anthropic, with a cost cap on every run.
-
-## Install
-
-You need Python 3.12+ and [uv](https://docs.astral.sh/uv/). Node.js 20+ is needed only to build the UI when you install from source. [ripgrep](https://github.com/BurntSushi/ripgrep) is optional, but it makes code search faster.
+*codemap tracing its own pipeline.*
 
 ```bash
+codemap trace "what happens when a file is uploaded?"
+```
+
+Code written by AI is hard to read, and so is any codebase you did not write. codemap follows one flow end to end and draws it:
+
+- **High-level stages first.** Open a stage to see its steps. Open a step to see its sub-steps, down to the code. Nothing opens on a new page.
+- **Every node shows its side effects.** Database tables and fields, object stores, queues, caches, files and HTTP calls, each marked read or write.
+- **Every node explains itself.** Click one to get how it works (each line cites the code), its input and output, the data it touches, and what it calls.
+- **Real code paths only.** A separate verifier agent checks every indirect hop (queues, string dispatch, callbacks) before it goes on the map.
+- **Any language.** Tree-sitter grammars are bundled.
+- **Local.** Traces live in SQLite inside your repo. Only the model call leaves your machine.
+
+## Quickstart
+
+You need Python 3.12+, [uv](https://docs.astral.sh/uv/) and Node.js 20+ (to build the UI when you install from source).
+
+```bash
+# 1. install
 uv tool install git+https://github.com/capGoblin/codemap
-codemap --version
-```
 
-## Set your API key
+# 2. add a key (OpenAI by default)
+export OPENAI_API_KEY=sk-...
 
-codemap uses OpenAI `gpt-5-nano` by default. It is cheap, and a full trace usually costs a few cents.
-
-```bash
-export OPENAI_API_KEY=sk-...          # OpenAI (default)
-# or
-export ANTHROPIC_API_KEY=sk-ant-...   # Anthropic, with --provider anthropic
-```
-
-Check the setup:
-
-```bash
-codemap doctor
-```
-
-The doctor checks the key, the model price, ripgrep, the database and one live model call. It never prints the key.
-
-## Trace a system
-
-Go to the repo you want to understand, and ask about one system:
-
-```bash
+# 3. trace a flow in any repo
 cd path/to/your/repo
-codemap trace "How does an uploaded file get parsed and stored?"
+codemap trace "how does a request get authenticated?"
 ```
 
-1. codemap finds candidate entry points and asks you to pick one (`--pick 1` skips the prompt).
-2. It walks the code path, verifies indirect hops, and builds the stages and two levels of steps.
-3. It opens the graph in your browser. Ctrl-C stops a run early and keeps a partial trace.
+codemap lists candidate entry points, you pick one, and the graph opens in your browser a few minutes later. To try it without installing, use `uvx --from git+https://github.com/capGoblin/codemap codemap ...`.
 
-You can also give the entry point directly, as `file:Symbol`:
+A trace costs from a few cents to about 30 cents, depending on the model and the size of the flow.
 
-```bash
-codemap trace "src/api/upload.py:UploadView.post"
-```
+## Commands
 
-### Lazy mode
-
-A full trace builds every level up front. With `--lazy`, codemap builds only the stage level, and each node's steps are built when you open it in the UI. It is faster and cheaper on big systems.
-
-```bash
-codemap trace "How does billing run at month end?" --lazy
-```
-
-### See your traces
-
-```bash
-codemap list              # every trace in this repo: id, question, status, cost, date
-codemap open <TRACE_ID>   # open one in the browser
-codemap open              # no id: list traces, then open one
-```
-
-### Other trace options
-
-| Option | Does |
+| Command | What it does |
 | --- | --- |
-| `--pick N` | Use entry point N, with no prompt |
-| `--lazy` | Build the stage level only. Deeper levels are built on click |
-| `--no-open` | Do not start the browser or the server |
-| `--json` | Print the graph JSON on stdout (for scripts) |
+| `codemap trace "<question>"` | Trace a flow and open it in the browser. Give `file.py:Symbol` to skip entry-point search. |
+| `codemap trace "<question>" --lazy` | Build only the stage level. Deeper levels are built when you open a node. Faster and cheaper on big systems. |
+| `codemap list` | List the traces saved in this repo. |
+| `codemap open [ID]` | Open a saved trace in the browser. |
+| `codemap doctor` | Check the key, the model, the price, ripgrep and the database. |
 
-## Models, keys and cost
+Options for `trace`: `--pick N` (skip the entry prompt), `--no-open`, `--json` (print the graph for scripts). Press Ctrl-C to stop a run and keep a partial trace.
 
-Global options go **before** the command:
+## Models and keys
+
+OpenAI and Anthropic are supported. Global options go before the command:
 
 ```bash
 codemap --provider anthropic --model claude-sonnet-5-5 --max-cost 1.50 trace "..."
@@ -100,70 +72,64 @@ codemap --provider anthropic --model claude-sonnet-5-5 --max-cost 1.50 trace "..
 | --- | --- | --- |
 | `--provider` | `CODEMAP_PROVIDER` | `openai` |
 | `--model` | `CODEMAP_MODEL` | `gpt-5-nano` (OpenAI), `claude-haiku-5-5` (Anthropic) |
-| `--api-key` | `CODEMAP_API_KEY`, else `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | none |
+| `--api-key` | `CODEMAP_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | none |
 | `--base-url` | `CODEMAP_BASE_URL` | the provider's API |
-| `--max-cost` | `CODEMAP_MAX_COST` | `5.0` USD per run |
-| `--repo` | | current directory |
+| `--max-cost` | `CODEMAP_MAX_COST` | `5.0` (USD per run) |
 
-Order of priority: flags, then env vars, then the config file, then defaults.
+Defaults can also live in `~/.config/codemap/config.toml`. Flags beat env vars, which beat the config file.
 
-- **`--api-key` works, but use the env var if you can.** A key passed as a flag stays in your shell history.
-- **`--base-url`** points codemap at any OpenAI- or Anthropic-compatible endpoint, for example a proxy or a local server.
-- **Cost.** codemap knows the prices of the common OpenAI and Anthropic models. For any other model, set `price_in_per_mtok` and `price_out_per_mtok` in the config file. If it can't find a price, it can't enforce `--max-cost`, and `codemap doctor` warns you.
-- **Free re-runs.** Every model call is cached in the repo's database, so an identical request costs nothing the second time.
-
-### Config file
-
-Put defaults in `config.toml`. Run `python -c "import platformdirs; print(platformdirs.user_config_dir('codemap'))"` to find its folder. You can also point `CODEMAP_CONFIG_FILE` at a file of your own.
-
-```toml
-provider = "anthropic"
-model = "claude-haiku-5-5"
-max_cost_usd = 2.0
-```
-
-## Using the UI
-
-- **Click a node** to open it in place into its steps, and to show its Details in the right panel. No page changes, no breadcrumbs.
-- **Details** teach the node: how it works (each step cites lines), input, output, data touched, calls, and the code. They are built the first time you open them.
-- **Data touched** tab: every table, bucket, queue and file the trace reads or writes. Click one to highlight the nodes that touch it.
-- **Toolbar:** expand all, collapse all, fit, filters.
-- Dashed edges are async hand-offs (queues, background jobs, events). Dimmed nodes are error and side paths.
-
-## What it stores and what it reads
-
-- **Stored** in `<repo>/.codemap/codemap.db`: traces, nodes, edges, hops, effects, run events and cached model calls. codemap adds `.codemap/` to `.git/info/exclude`.
-- **Not stored:** your source code or API keys. Code is read from disk when it is needed. A node goes stale when its code changes.
-- **Never read:** git-ignored files, dependencies, build output, binaries and secrets (`.env*`, keys, `.npmrc`, `.netrc`, `credentials*`, `.aws/`, `.ssh/`, `*.tfvars`…). The agent has read-only tools and no shell.
+- **Prefer the env var.** A key passed with `--api-key` stays in your shell history.
+- **`--base-url`** points codemap at any OpenAI- or Anthropic-compatible endpoint, such as a proxy or a local server. For a model with no known price, set `price_in_per_mtok` and `price_out_per_mtok` in the config file so `--max-cost` works.
+- **Pick a stronger model for hard flows.** The default is cheap, but small models give shallow traces on large, tangled systems.
+- **Calls are cached.** An identical request costs nothing the second time.
 
 ## How it works
 
-```text
-question → find entry → walk stages → verify indirect hops → split into stages
-        → expand calls (tree-sitter) → find effects → split into steps → validate → save
+```mermaid
+flowchart LR
+    Q[question] --> E[find entry point]
+    E --> W[agent walks the flow<br/>at the stage level]
+    W --> V[verifier checks<br/>indirect hops]
+    V --> X[tree-sitter expands<br/>calls into steps]
+    X --> F[find reads and writes]
+    F --> S[(SQLite)]
+    S --> U[browser UI]
 ```
 
-See [docs/guide](docs/guide/README.md) for the full walk-through: the pipeline, the data model, the server and the UI.
+1. An agent starts at the entry point and walks the flow at the stage level, with read-only tools: list, read, ripgrep search, and tree-sitter find-definition and outline.
+2. A separate verifier agent re-checks every indirect hop. It removes a hop only when it can point to the code that proves it wrong.
+3. Tree-sitter resolves the calls inside each stage, and a model call turns them into steps.
+4. Each node's reads and writes come from the code it covers, with real table and field names.
+5. The "how it works" panel is written the first time you open a node, and every line cites the code.
 
-## Develop
+The full walk-through is in [docs/guide](docs/guide/README.md).
+
+## Privacy and safety
+
+- Traces are stored in `<repo>/.codemap/codemap.db`. codemap adds `.codemap/` to `.git/info/exclude`. Source code and API keys are never stored.
+- The agent has read-only tools and no shell. It cannot leave the repo.
+- Files ignored by git, dependencies, build output, binaries and secrets (`.env*`, keys, `.npmrc`, `.netrc`, `credentials*`, `.aws/`, `.ssh/`, `*.tfvars`) are never read.
+- The UI server listens on `127.0.0.1` only.
+- The code snippets the agent reads are sent to your model provider. Use a provider you trust with that repo.
+
+## Known limits
+
+- A trace can be wrong, as any LLM output can. Every claim cites code, so check the citation.
+- Small models give shallow traces on large flows. Use `--model` for those.
+- Flows that cross services are traced as far as the repo goes.
+
+## Development
 
 ```bash
+git clone https://github.com/capGoblin/codemap && cd codemap
 uv sync
 npm --prefix frontend ci
-make check     # ruff, mypy strict, import-linter, pytest, frontend typecheck + vitest
-make dev       # API on 127.0.0.1:8765 + Vite dev server
+make check    # ruff, mypy, import-linter, pytest, frontend typecheck and tests
+make dev      # API on 127.0.0.1:8765 plus the Vite dev server
 ```
 
-Evals run codemap against its own pipeline:
-
-```bash
-make eval                                  # golden trace of codemap itself (replays recorded calls)
-uv run python -m evals.run_golden --record # real model calls
-uv run python -m evals.run_smoke evals/smoke.json   # one trace per repo in the file
-```
-
-Add your own repos to `evals/smoke.json` to smoke-test codemap on them.
+`make eval` traces codemap's own code and scores the result against `evals/codemap-trace.expected.json`. It uses your API key, costs a few cents, and repeat runs are free from the cache. See [CONTRIBUTING.md](CONTRIBUTING.md) for the rest.
 
 ## License
 
-MIT
+[MIT](LICENSE)

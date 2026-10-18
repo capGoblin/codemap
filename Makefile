@@ -23,4 +23,4 @@ gen-api:
 	rm frontend/openapi.json
 
 eval:
-	uv run python -m evals.run_golden evals/codemap-trace.expected.json
+	uv run python -m evals.run_golden evals/codemap-trace.expected.json --record
