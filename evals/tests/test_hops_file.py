@@ -1,8 +1,6 @@
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 from codemap.agents.model import ModelResponse
 from codemap.repo.anchors import check_anchor
 from codemap.repo.ignore import RepoIgnore
@@ -15,15 +13,12 @@ FIXTURE = Path(__file__).resolve().parents[2] / "tests/fixtures/sample_repo"
 
 def test_hops_file_valid() -> None:
     entries = load_hops(HOPS)
-    assert sum(e.real for e in entries) >= 20
-    assert sum(not e.real for e in entries) >= 10
+    assert sum(e.real for e in entries) >= 15
+    assert sum(not e.real for e in entries) >= 12
     assert len({e.category for e in entries if e.real}) >= 4
-    assert len({e.repo for e in entries}) >= 3
+    assert {e.repo for e in entries} <= set(REPOS)
     keys = [(e.repo, e.caller, e.callee, e.wiring) for e in entries]
     assert len(set(map(repr, keys))) == len(keys)
-    for repo in {e.repo for e in entries}:
-        if not REPOS[repo].exists():
-            pytest.skip(f"target repo {repo} is not on this machine")
     tools = {r: RepoTools(REPOS[r], RepoIgnore(REPOS[r])) for r in {e.repo for e in entries}}
     for e in entries:
         for anchor in (e.caller, e.callee, e.wiring):

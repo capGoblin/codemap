@@ -2,7 +2,7 @@
 
 ## What it is
 
-A local CLI. You name a system ("file parsing system") or an entry point. codemap traces the real code path with an LLM agent (MiniMax M3), cuts it into nested nodes (phases → steps → sub-steps), records side effects (DB, S3, queues…), stores it in SQLite inside the target repo, and shows it in a browser canvas.
+A local CLI. You name a system ("the trace pipeline") or an entry point. codemap traces the real code path with an LLM agent (the configured model), cuts it into nested nodes (phases → steps → sub-steps), records side effects (DB, S3, queues…), stores it in SQLite inside the target repo, and shows it in a browser canvas.
 
 Only the model call leaves the machine. Server binds `127.0.0.1`.
 
@@ -29,7 +29,7 @@ Other folders:
 | --- | --- |
 | `src/codemap/prompts/` | One `.md` per agent prompt |
 | `frontend/` | Vite + React + TS UI (React Flow + ELK). Built into `src/codemap/server/static/` |
-| `evals/` | Golden example trace, scorer, verifier hop set, multi-repo smoke runs |
+| `evals/` | Golden self-trace of codemap, scorer, verifier hop set, smoke runs |
 | `tests/` | pytest: `unit/`, `pipeline/`, `server/`, fixture repo `tests/fixtures/sample_repo/` |
 | `scripts/` | Model probe, OpenAPI dump, tree-sitter crash check |
 | `docs/` | Specs, plans, this guide, notes (model probe, eval results) |

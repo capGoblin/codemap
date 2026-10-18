@@ -1,0 +1,449 @@
+{
+  "repo": ".",
+  "commit": "",
+  "question": "How does codemap trace a system, from the trace command to the saved graph?",
+  "entry": {
+    "file": "src/codemap/cli/main.py",
+    "start_line": 48,
+    "end_line": 64,
+    "symbol": "trace"
+  },
+  "phases": [
+    {
+      "title": "Start trace",
+      "summary": "Parse the command, pick an entry, and launch the worker thread.",
+      "spans": [
+        {
+          "file": "src/codemap/cli/main.py",
+          "start_line": 48,
+          "end_line": 64,
+          "symbol": "trace"
+        },
+        {
+          "file": "src/codemap/cli/trace.py",
+          "start_line": 47,
+          "end_line": 83,
+          "symbol": "run_trace"
+        },
+        {
+          "file": "src/codemap/service.py",
+          "start_line": 112,
+          "end_line": 135,
+          "symbol": "start_trace"
+        },
+        {
+          "file": "src/codemap/service.py",
+          "start_line": 137,
+          "end_line": 146,
+          "symbol": "_run"
+        }
+      ],
+      "steps": [
+        {
+          "title": "Run trace command",
+          "summary": "The CLI builds a service and calls the trace runner.",
+          "spans": [
+            {
+              "file": "src/codemap/cli/main.py",
+              "start_line": 48,
+              "end_line": 64,
+              "symbol": "trace"
+            },
+            {
+              "file": "src/codemap/cli/trace.py",
+              "start_line": 47,
+              "end_line": 83,
+              "symbol": "run_trace"
+            }
+          ],
+          "steps": []
+        },
+        {
+          "title": "Create trace row",
+          "summary": "Store the question, entry, commit, and model.",
+          "spans": [
+            {
+              "file": "src/codemap/service.py",
+              "start_line": 112,
+              "end_line": 135,
+              "symbol": "start_trace"
+            }
+          ],
+          "steps": []
+        },
+        {
+          "title": "Start worker thread",
+          "summary": "Run the pipeline on a daemon thread.",
+          "spans": [
+            {
+              "file": "src/codemap/service.py",
+              "start_line": 129,
+              "end_line": 146,
+              "symbol": "_run"
+            }
+          ],
+          "steps": []
+        }
+      ]
+    },
+    {
+      "title": "Find entry",
+      "summary": "Turn the question into validated entry point candidates.",
+      "spans": [
+        {
+          "file": "src/codemap/service.py",
+          "start_line": 84,
+          "end_line": 87,
+          "symbol": "resolve"
+        },
+        {
+          "file": "src/codemap/pipeline/resolve.py",
+          "start_line": 78,
+          "end_line": 97,
+          "symbol": "resolve_entry"
+        }
+      ],
+      "steps": [
+        {
+          "title": "Parse direct entry",
+          "summary": "Accept a file and symbol typed by the user.",
+          "spans": [
+            {
+              "file": "src/codemap/pipeline/resolve.py",
+              "start_line": 33,
+              "end_line": 37,
+              "symbol": "parse_direct_entry"
+            },
+            {
+              "file": "src/codemap/pipeline/resolve.py",
+              "start_line": 57,
+              "end_line": 68,
+              "symbol": "_direct_candidates"
+            }
+          ],
+          "steps": []
+        },
+        {
+          "title": "Search with model",
+          "summary": "A tool loop reads code and proposes candidates.",
+          "spans": [
+            {
+              "file": "src/codemap/pipeline/resolve.py",
+              "start_line": 78,
+              "end_line": 97,
+              "symbol": "resolve_entry"
+            }
+          ],
+          "steps": []
+        },
+        {
+          "title": "Validate anchors",
+          "summary": "Keep candidates whose lines exist and hash them.",
+          "spans": [
+            {
+              "file": "src/codemap/pipeline/resolve.py",
+              "start_line": 70,
+              "end_line": 75,
+              "symbol": "_validated"
+            }
+          ],
+          "steps": []
+        }
+      ]
+    },
+    {
+      "title": "Walk & verify",
+      "summary": "Follow calls from the entry and check indirect hops.",
+      "spans": [
+        {
+          "file": "src/codemap/pipeline/walk.py",
+          "start_line": 238,
+          "end_line": 241,
+          "symbol": "walk_skeleton"
+        },
+        {
+          "file": "src/codemap/pipeline/walk.py",
+          "start_line": 121,
+          "end_line": 155,
+          "symbol": "record_hop"
+        },
+        {
+          "file": "src/codemap/pipeline/verify.py",
+          "start_line": 71,
+          "end_line": 92,
+          "symbol": "verify_hop"
+        }
+      ],
+      "steps": [
+        {
+          "title": "Walk call graph",
+          "summary": "A tool loop records caller and callee pairs.",
+          "spans": [
+            {
+              "file": "src/codemap/pipeline/walk.py",
+              "start_line": 213,
+              "end_line": 235,
+              "symbol": "_run"
+            },
+            {
+              "file": "src/codemap/pipeline/walk.py",
+              "start_line": 238,
+              "end_line": 241,
+              "symbol": "walk_skeleton"
+            }
+          ],
+          "steps": []
+        },
+        {
+          "title": "Record hop",
+          "summary": "Save each hop at once so a crash keeps it.",
+          "spans": [
+            {
+              "file": "src/codemap/pipeline/walk.py",
+              "start_line": 121,
+              "end_line": 155,
+              "symbol": "record_hop"
+            },
+            {
+              "file": "src/codemap/pipeline/walk.py",
+              "start_line": 157,
+              "end_line": 162,
+              "symbol": "store"
+            }
+          ],
+          "steps": []
+        },
+        {
+          "title": "Verify indirect hop",
+          "summary": "A second model call confirms or rejects the link.",
+          "spans": [
+            {
+              "file": "src/codemap/pipeline/verify.py",
+              "start_line": 71,
+              "end_line": 92,
+              "symbol": "verify_hop"
+            }
+          ],
+          "steps": []
+        }
+      ]
+    },
+    {
+      "title": "Build levels",
+      "summary": "Order the path, split it into phases, then steps.",
+      "spans": [
+        {
+          "file": "src/codemap/domain/rules.py",
+          "start_line": 25,
+          "end_line": 55,
+          "symbol": "ordered_points"
+        },
+        {
+          "file": "src/codemap/pipeline/split.py",
+          "start_line": 217,
+          "end_line": 255,
+          "symbol": "split_phases"
+        },
+        {
+          "file": "src/codemap/pipeline/run.py",
+          "start_line": 175,
+          "end_line": 212,
+          "symbol": "_deepen_all"
+        },
+        {
+          "file": "src/codemap/pipeline/run.py",
+          "start_line": 214,
+          "end_line": 245,
+          "symbol": "_split_level"
+        },
+        {
+          "file": "src/codemap/pipeline/split.py",
+          "start_line": 382,
+          "end_line": 443,
+          "symbol": "split_children"
+        }
+      ],
+      "steps": [
+        {
+          "title": "Order path points",
+          "summary": "Sort hops into one path and bridge gaps.",
+          "spans": [
+            {
+              "file": "src/codemap/domain/rules.py",
+              "start_line": 25,
+              "end_line": 55,
+              "symbol": "ordered_points"
+            }
+          ],
+          "steps": []
+        },
+        {
+          "title": "Split into phases",
+          "summary": "The model groups path points into three to six phases.",
+          "spans": [
+            {
+              "file": "src/codemap/pipeline/split.py",
+              "start_line": 217,
+              "end_line": 255,
+              "symbol": "split_phases"
+            }
+          ],
+          "steps": []
+        },
+        {
+          "title": "Expand each phase",
+          "summary": "Follow static calls inside a phase, then find effects.",
+          "spans": [
+            {
+              "file": "src/codemap/pipeline/run.py",
+              "start_line": 175,
+              "end_line": 212,
+              "symbol": "_deepen_all"
+            },
+            {
+              "file": "src/codemap/pipeline/expand.py",
+              "start_line": 85,
+              "end_line": 139,
+              "symbol": "expand_static"
+            },
+            {
+              "file": "src/codemap/pipeline/effects.py",
+              "start_line": 72,
+              "end_line": 117,
+              "symbol": "phase_effects"
+            }
+          ],
+          "steps": []
+        },
+        {
+          "title": "Split into steps",
+          "summary": "Child splits run on worker threads for each parent.",
+          "spans": [
+            {
+              "file": "src/codemap/pipeline/run.py",
+              "start_line": 214,
+              "end_line": 245,
+              "symbol": "_split_level"
+            },
+            {
+              "file": "src/codemap/pipeline/split.py",
+              "start_line": 382,
+              "end_line": 443,
+              "symbol": "split_children"
+            }
+          ],
+          "steps": []
+        }
+      ]
+    },
+    {
+      "title": "Validate & save",
+      "summary": "Drop ungrounded nodes, write the graph, and set status.",
+      "spans": [
+        {
+          "file": "src/codemap/pipeline/validate.py",
+          "start_line": 92,
+          "end_line": 122,
+          "symbol": "validate_graph"
+        },
+        {
+          "file": "src/codemap/pipeline/run.py",
+          "start_line": 248,
+          "end_line": 331,
+          "symbol": "run_trace"
+        },
+        {
+          "file": "src/codemap/store/traces.py",
+          "start_line": 207,
+          "end_line": 213,
+          "symbol": "replace_graph"
+        }
+      ],
+      "steps": [
+        {
+          "title": "Validate graph",
+          "summary": "Drop nodes whose code anchors do not match the files.",
+          "spans": [
+            {
+              "file": "src/codemap/pipeline/validate.py",
+              "start_line": 92,
+              "end_line": 122,
+              "symbol": "validate_graph"
+            }
+          ],
+          "steps": []
+        },
+        {
+          "title": "Save graph",
+          "summary": "Replace the stored nodes and edges in one transaction.",
+          "spans": [
+            {
+              "file": "src/codemap/store/traces.py",
+              "start_line": 207,
+              "end_line": 213,
+              "symbol": "replace_graph"
+            }
+          ],
+          "steps": []
+        },
+        {
+          "title": "Set final status",
+          "summary": "Mark the trace complete, partial, or failed.",
+          "spans": [
+            {
+              "file": "src/codemap/pipeline/run.py",
+              "start_line": 142,
+              "end_line": 146,
+              "symbol": "_status"
+            },
+            {
+              "file": "src/codemap/pipeline/run.py",
+              "start_line": 318,
+              "end_line": 331,
+              "symbol": "set_status"
+            }
+          ],
+          "steps": []
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "category": "db",
+      "target": "traces",
+      "op": "write"
+    },
+    {
+      "category": "db",
+      "target": "hops",
+      "op": "write"
+    },
+    {
+      "category": "db",
+      "target": "walk_effects",
+      "op": "read"
+    },
+    {
+      "category": "db",
+      "target": "walk_effects",
+      "op": "write"
+    },
+    {
+      "category": "db",
+      "target": "nodes",
+      "op": "write"
+    },
+    {
+      "category": "db",
+      "target": "edges",
+      "op": "write"
+    },
+    {
+      "category": "db",
+      "target": "events",
+      "op": "write"
+    }
+  ],
+  "note": "Self-trace of this repository. The commit is empty, so the pin check is skipped."
+}

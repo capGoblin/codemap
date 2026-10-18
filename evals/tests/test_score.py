@@ -195,14 +195,19 @@ def test_plumbing_phase_titles():
     assert "plumbing_titles=2" in format_score(s)
 
 
-example = Path("../example-app")
-GOLDEN = Path(__file__).resolve().parents[1] / "example-file-parsing.expected.json"
+ROOT = Path(__file__).resolve().parents[2]
+GOLDEN = Path(__file__).resolve().parents[1] / "codemap-trace.expected.json"
 
 
-@pytest.mark.skipif(not example.is_dir(), reason="example repo not present")
-def test_load_example_expected_shape():
-    exp = load_expected(GOLDEN, example)
-    assert [p.title for p in exp.phases] == ["Upload", "Parse", "Interpret", "Load"]
+def test_load_codemap_expected_shape():
+    exp = load_expected(GOLDEN, ROOT)
+    assert [p.title for p in exp.phases] == [
+        "Start trace",
+        "Find entry",
+        "Walk & verify",
+        "Build levels",
+        "Validate & save",
+    ]
     nodes = []
 
     def walk(ns):
@@ -214,5 +219,5 @@ def test_load_example_expected_shape():
     assert all(len(n.title.split()) <= 4 for n in nodes)
     assert all(0 < len(n.summary.split()) <= 14 for n in nodes)
     assert {e.op for e in exp.effects} <= {"read", "write"}
-    interpret = [s.title for s in exp.phases[2].steps]
-    assert {"Locate tables", "Extract values", "Map fields"} <= set(interpret)
+    build = [s.title for s in exp.phases[3].steps]
+    assert {"Order path points", "Split into phases", "Split into steps"} <= set(build)

@@ -105,12 +105,12 @@ Flow: skeleton walk → points → split phases → save phases → for each pha
 - Right panel (resizable, 420px default), tabs **Details** and **Data touched**:
   - Details: header (title, summary, code name), How it works (numbered, cite links `file:line` that scroll the code view and highlight), Input / Output (type, fields, from/to node links that move the camera), Data touched (R/W, target, fields, line), Calls (links when `node_id`), Code (full, line numbers, cited lines highlighted). Loading state while explain runs; error + Retry.
   - Data touched: targets grouped by category; each row = target name + per-phase `R`/`W` tags; click highlights nodes that touch it, others fade.
-- Design: follow the approved mockups (`example-v2.html`, `example-details.html` in the brainstorm content dir). Keep it clean.
+- Design: follow the approved mockups (`v2.html`, `details.html` in the brainstorm content dir). Keep it clean.
 
 - [ ] Tests first; implement; vitest + Playwright (real-server spec updated for 3 levels and the panel); commit.
 
 ### Task 7: Evals and real run
 
-**Files:** `evals/example-file-parsing.expected.json` (restructure to Upload / Parse / Interpret / Load; Interpret → Locate tables, Locate regions?, Extract values, Map fields, Gate & resolve…; deeper as in the summary md), `evals/score.py` (N-level: step agreement averaged over all matched parents; add `max_phases_ok`, `title_len_ok`, `summary_ok`), docs/notes/eval-results.md.
+**Files:** `evals/codemap-trace.expected.json` (restructure to Start trace / Find entry / Walk & verify / Build levels / Validate & save; Build levels → Order path points, Split into phases, Expand each phase, Split into steps; deeper as in the summary md), `evals/score.py` (N-level: step agreement averaged over all matched parents; add `max_phases_ok`, `title_len_ok`, `summary_ok`), docs/notes/eval-results.md.
 
-- [ ] Update expected + scorer with tests; controller then runs the real example trace and the visual check with the user.
+- [ ] Update expected + scorer with tests; controller then runs the real self-trace and the visual check with the user.

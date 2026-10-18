@@ -18,15 +18,10 @@ from codemap.pipeline.verify import verify_hop
 from codemap.repo.anchors import with_hash
 from codemap.settings import Settings, load_settings
 
+ROOT = Path(__file__).resolve().parents[1]
 RECORDING = Path(__file__).parent / "recordings" / "verifier.json"
 PASS_BAR = 0.02
-REPOS = {
-    "example": Path("../example-app"),
-    "chat-agent": Path("../example-repo"),
-    "pi": Path("../example-repo"),
-    "qm": Path("../example-repo"),
-    "agent-cli": Path("../example-repo"),
-}
+REPOS = {"codemap": ROOT}
 
 
 class HopEntry(BaseModel):

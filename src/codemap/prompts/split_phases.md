@@ -28,7 +28,7 @@ For each phase give: title, summary, does (1 to 3 sentences), `start` and `end` 
 # Rules
 
 - Use only indexes and anchors from the given path. Never invent a file, line or symbol.
-- `title`: at most 4 words. A verb phrase or the stage's own name, for example "Upload" or "Locate tables". Never a function name. Never a generic title such as "process data".
+- `title`: at most 4 words. A verb phrase or the stage's own name, for example "Receive request" or "Resolve entry". Never a function name. Never a generic title such as "process data".
 - `summary`: one plain sentence, at most 14 words, that says what the phase does.
 - The output of one phase should match the input of the next, or boundary_reason must say why not.
 - Do not add a phase for code that is not on the path.

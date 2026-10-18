@@ -1,6 +1,6 @@
 """Run codemap on a pinned target repo and score the trace against a golden file.
 
-python -m evals.run_golden evals/example-file-parsing.expected.json [--record]
+python -m evals.run_golden evals/codemap-trace.expected.json [--record]
 """
 
 import argparse
@@ -17,6 +17,7 @@ from codemap.settings import load_settings
 from evals.expected import ExpectedTrace, load_expected
 from evals.score import Score, format_score, score
 
+ROOT = Path(__file__).resolve().parents[1]
 RECORDINGS = Path(__file__).parent / "recordings"
 
 
@@ -32,11 +33,12 @@ def run_golden(expected_path: Path, *, record: bool, model: ChatModel | None = N
 
     `model` replaces the recording layer. It exists for tests.
     """
-    root = Path(ExpectedTrace.model_validate_json(expected_path.read_text()).repo)
+    repo = Path(ExpectedTrace.model_validate_json(expected_path.read_text()).repo)
+    root = repo if repo.is_absolute() else ROOT / repo  # a relative repo is relative to this repo
     expected = load_expected(expected_path, root)
 
     head = _git(root, "rev-parse", "HEAD")
-    if not head.startswith(expected.commit):
+    if expected.commit and not head.startswith(expected.commit):
         raise RuntimeError(f"{root} is at {head}, but the expected file pins {expected.commit}")
     if _git(root, "status", "--porcelain"):
         print(f"warning: {root} has uncommitted changes; the trace reads the working tree")
@@ -62,7 +64,9 @@ def run_golden(expected_path: Path, *, record: bool, model: ChatModel | None = N
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="evals.run_golden")
-    parser.add_argument("expected", type=Path)
+    parser.add_argument(
+        "expected", type=Path, nargs="?", default=ROOT / "evals/codemap-trace.expected.json"
+    )
     parser.add_argument("--record", action="store_true", help="call the real model and record")
     args = parser.parse_args(argv)
     run_golden(args.expected, record=args.record)
