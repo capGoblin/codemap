@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from codemap.agents.limits import Budget, LimitReached, Limits
 from codemap.agents.loop import Tool, run_tool_loop
+from codemap.agents.schema import unwrap_items
 from fakes import ScriptedModel, resp, text, tool_use
 
 
@@ -144,3 +145,31 @@ def test_loop_trims_old_tool_results() -> None:
     assert last[6]["content"][0]["content"] == "echoed"
     assert last[1]["content"][0]["type"] == "tool_use"
     assert model.requests[1]["messages"][2]["content"][0]["content"] == "echoed"
+
+
+def test_unwrap_items_nested_in_list_of_objects() -> None:
+    raw = {"steps": [{"lines": {"item": ["603", "606"]}, "n": {"item": "x"}}], "k": 1}
+    assert unwrap_items(raw) == {"steps": [{"lines": ["603", "606"], "n": ["x"]}], "k": 1}
+
+
+def test_unwrap_items_leaves_item_with_other_keys() -> None:
+    raw = {"item": [1], "other": 2}
+    assert unwrap_items(raw) == raw
+
+
+class Step(BaseModel):
+    lines: list[int]
+
+
+class Steps(BaseModel):
+    steps: list[Step]
+
+
+def test_submit_with_nested_item_validates_first_try() -> None:
+    args = {"steps": [{"lines": {"item": ["603", "606"]}}]}
+    model = ScriptedModel([resp(tool_use("submit", args, "t1"))])
+    out = run_tool_loop(
+        model, system="s", user="u", tools=[], submit_schema=Steps, budget=_budget()
+    )
+    assert out.steps[0].lines == [603, 606]
+    assert len(model.requests) == 1

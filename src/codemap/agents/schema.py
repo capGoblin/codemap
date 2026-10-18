@@ -13,6 +13,16 @@ def _unwrap_item(value: Any) -> Any:
     return value
 
 
+def unwrap_items(value: Any) -> Any:
+    """Recursively replace {"item": x} wrappers (any depth) with lists."""
+    if isinstance(value, list):
+        return [unwrap_items(v) for v in value]
+    if isinstance(value, dict):
+        out = {k: unwrap_items(v) for k, v in value.items()}
+        return _unwrap_item(out)
+    return value
+
+
 def tolerant_list(*fields: str) -> Any:
     """A before-validator for list fields. Use as `_unwrap = tolerant_list("a", "b")`."""
     return field_validator(*fields, mode="before")(_unwrap_item)
