@@ -9,7 +9,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from codemap.agents.model import AnthropicModel, ChatModel
+from codemap.agents.model import ChatModel
+from codemap.agents.providers import make_model
 from codemap.agents.recording import CachedModel, JsonFileCache, ReplayOnlyModel
 from codemap.domain.models import Anchor, EdgeKind, Hop
 from codemap.pipeline.context import TraceContext, build_context
@@ -71,14 +72,8 @@ def _hashed(entry: HopEntry, index: int, ctx: TraceContext) -> Hop:
 def _model(settings: Settings, record: bool, recording: Path) -> ChatModel:
     cache = JsonFileCache(recording)
     if not record:
-        return ReplayOnlyModel(cache)
-    live = AnthropicModel(
-        settings.anthropic_base_url,
-        settings.anthropic_auth_token.get_secret_value(),
-        settings.model,
-        settings.request_timeout_s,
-    )
-    return CachedModel(live, cache)
+        return ReplayOnlyModel(cache, settings.model_id)
+    return CachedModel(make_model(settings), cache, settings.model_id)
 
 
 def run_verifier(

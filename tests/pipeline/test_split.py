@@ -299,7 +299,7 @@ def test_split_phases_rejects_bare_function_name_title(tmp_path: Path) -> None:
 
 
 def test_split_steps_accepts_item_wrapped_lists(tmp_path: Path) -> None:
-    """MiniMax wraps a one-element list as {"item": {...}}. The first answer must be accepted."""
+    """Some models wrap a one-element list as {"item": {...}}. The first answer must be accepted."""
     draft = step_draft("Accept the file (upload)", [UPLOAD])
     draft["anchors"] = {"item": UPLOAD.model_dump()}
     model = ScriptedModel([submit(steps={"item": draft})])

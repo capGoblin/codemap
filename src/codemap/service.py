@@ -12,7 +12,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from codemap.agents.limits import LimitReached
-from codemap.agents.model import AnthropicModel, ChatModel, ModelError
+from codemap.agents.model import ChatModel, ModelError
+from codemap.agents.providers import make_model
 from codemap.domain.events import Event
 from codemap.domain.models import (
     EntryCandidate,
@@ -87,12 +88,7 @@ class Service:
         return resolve_entry(ctx, question)
 
     def _uncached_model(self) -> ChatModel:
-        return self._model or AnthropicModel(
-            self.settings.anthropic_base_url,
-            self.settings.anthropic_auth_token.get_secret_value(),
-            self.settings.model,
-            self.settings.request_timeout_s,
-        )
+        return self._model or make_model(self.settings)
 
     def check_model(self) -> str | None:
         """Send one tiny request, not cached. Return an error message, or None when it works."""
@@ -104,7 +100,7 @@ class Service:
                 max_tokens=16,
             )
         except Exception as exc:
-            token = self.settings.anthropic_auth_token.get_secret_value()
+            token = self.settings.resolved_api_key()
             message = str(exc) or type(exc).__name__
             return message.replace(token, "***") if token else message
         return None
@@ -123,7 +119,7 @@ class Service:
                 status="running",
                 mode=mode,
                 created_at=datetime.now(UTC),
-                model=self.settings.model,
+                model=self.settings.resolved_model,
             )
         )
         thread = threading.Thread(

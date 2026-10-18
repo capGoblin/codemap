@@ -1,14 +1,15 @@
-"""Manual probe of the real model endpoint. Needs ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN.
+"""Manual probe of the configured model: tool calls and token usage.
 
 Usage: uv run python scripts/probe_model.py [model-id]
-Never prints the token.
+Reads provider, key and base URL from the usual settings (CODEMAP_PROVIDER, OPENAI_API_KEY, ...).
+Never prints the key.
 """
 
-import os
 import sys
 
-from codemap.agents.model import AnthropicModel
-from codemap.settings import DEFAULT_MODEL
+from codemap.agents.model import ChatModel
+from codemap.agents.providers import make_model
+from codemap.settings import Settings
 
 ADD = {
     "name": "add",
@@ -30,7 +31,7 @@ WEATHER = {
 }
 
 
-def ask(model: AnthropicModel, prompt: str, tools: list[dict]) -> None:  # type: ignore[type-arg]
+def ask(model: ChatModel, prompt: str, tools: list[dict]) -> None:  # type: ignore[type-arg]
     r = model.respond(
         system="Use the tools. Call every tool you need.",
         messages=[{"role": "user", "content": prompt}],
@@ -43,11 +44,9 @@ def ask(model: AnthropicModel, prompt: str, tools: list[dict]) -> None:  # type:
 
 
 def main() -> None:
-    model_id = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_MODEL
-    model = AnthropicModel(
-        os.environ["ANTHROPIC_BASE_URL"], os.environ["ANTHROPIC_AUTH_TOKEN"], model_id, 120
-    )
-    print("model:", model_id)
+    settings = Settings(model=sys.argv[1]) if len(sys.argv) > 1 else Settings()
+    model = make_model(settings)
+    print("model:", settings.model_id)
     print("(a) single tool")
     ask(model, "What is 17 + 25?", [ADD])
     print("(b) two tools, parallel possible")

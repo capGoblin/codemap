@@ -6,29 +6,41 @@ from collections.abc import Callable
 
 from rich.table import Table
 
+from codemap.agents.pricing import price_for
 from codemap.cli import render
 from codemap.service import Service
-from codemap.settings import Settings
+from codemap.settings import FALLBACK_KEY_VARS, Settings
 
 Check = tuple[str, str, str]  # name, pass|warn|fail, detail
 _STYLE = {"pass": "green", "warn": "yellow", "fail": "red"}
 _MIN_PYTHON = (3, 12)
 
 
-def _env(settings: Settings) -> list[Check]:
-    token = settings.anthropic_auth_token.get_secret_value()
-    return [
+def _config(settings: Settings) -> list[Check]:
+    key = settings.resolved_api_key()
+    model = settings.resolved_model
+    prices = price_for(model, settings.price_in_per_mtok, settings.price_out_per_mtok)
+    rows: list[Check] = [
+        ("provider", "pass", settings.provider),
         (
-            "ANTHROPIC_AUTH_TOKEN",
-            "pass" if token else "fail",
-            "set" if token else "missing: set it in the environment or config.toml",
+            "api key",
+            "pass" if key else "fail",
+            "set"
+            if key
+            else f"missing: set {FALLBACK_KEY_VARS[settings.provider]} or CODEMAP_API_KEY",
         ),
+        ("model", "pass", model),
         (
-            "ANTHROPIC_BASE_URL",
-            "pass" if settings.anthropic_base_url else "fail",
-            settings.anthropic_base_url or "missing",
+            "price",
+            "pass" if prices else "warn",
+            f"${prices[0]} in / ${prices[1]} out per MTok"
+            if prices
+            else "price unknown: set price_in_per_mtok / price_out_per_mtok",
         ),
     ]
+    if settings.base_url:
+        rows.append(("base url", "pass", settings.base_url))
+    return rows
 
 
 def _python() -> Check:
@@ -53,18 +65,18 @@ def _db(make: Callable[[], Service]) -> tuple[Check, Service | None]:
 
 def _model(service: Service | None, settings: Settings) -> Check:
     if service is None:
-        return ("model", "fail", "skipped: database did not open")
-    if not settings.anthropic_auth_token.get_secret_value():
-        return ("model", "fail", "skipped: no auth token")
+        return ("model call", "fail", "skipped: database did not open")
+    if not settings.resolved_api_key():
+        return ("model call", "fail", "skipped: no API key")
     error = service.check_model()
     if error:
-        return ("model", "fail", error)
-    return ("model", "pass", f"{settings.model} answered")
+        return ("model call", "fail", error)
+    return ("model call", "pass", f"{settings.resolved_model} answered")
 
 
 def run_doctor(settings: Settings, make: Callable[[], Service]) -> int:
     db_check, service = _db(make)
-    checks = [*_env(settings), _python(), _rg(), db_check, _model(service, settings)]
+    checks = [*_config(settings), _python(), _rg(), db_check, _model(service, settings)]
     table = Table(title="codemap doctor")
     for name in ("check", "result", "detail"):
         table.add_column(name)

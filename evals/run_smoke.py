@@ -100,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     rows = run_smoke(args.smoke)
     print(format_table(rows))
-    append_results(rows, load_settings().model)
+    append_results(rows, load_settings().resolved_model)
     return 0
 
 
