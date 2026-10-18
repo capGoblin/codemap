@@ -18,6 +18,7 @@ from codemap.domain.models import Anchor, EntryCandidate
 from codemap.service import Service
 from codemap.settings import load_settings
 
+ROOT = Path(__file__).resolve().parents[1]
 RESULTS = Path(__file__).resolve().parents[1] / "docs/notes/eval-results.md"
 _HOP = re.compile(r"^(\S+?):\d+-\d+ ")
 
@@ -26,6 +27,7 @@ class SmokeEntry(BaseModel):
     repo: str
     question: str
     entry: Anchor
+    note: str = ""
 
 
 class SmokeRow(BaseModel):
@@ -39,6 +41,12 @@ class SmokeRow(BaseModel):
     files_read: int
 
 
+def resolve_repo(repo: str) -> Path:
+    """A relative repo path is relative to the codemap checkout."""
+    path = Path(repo)
+    return path if path.is_absolute() else (ROOT / path).resolve()
+
+
 def load_smoke(path: Path) -> list[SmokeEntry]:
     return [SmokeEntry.model_validate(item) for item in json.loads(path.read_text())]
 
@@ -48,7 +56,7 @@ def run_smoke(path: Path, model: ChatModel | None = None) -> list[SmokeRow]:
     settings = load_settings()
     rows = []
     for item in load_smoke(path):
-        root = Path(item.repo)
+        root = resolve_repo(item.repo)
         service = Service(root, settings, model)
         entry = EntryCandidate(anchor=item.entry, label="smoke", reason="pinned")
         started = time.monotonic()

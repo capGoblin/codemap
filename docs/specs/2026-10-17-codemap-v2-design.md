@@ -22,9 +22,9 @@ v2 is a full rewrite in a new directory, `codemap-v2/`. The name stays `codemap`
 **Goals**
 
 - Any language, any framework. No per-language logic is required for correctness.
-- Production quality, at the level of `example-app`.
+- Production quality: typed, tested, small modules with enforced layers.
 - Every node is grounded in code: it has `file:line` anchors that code verifies.
-- Works on very large codebases within bounded cost and time. **Target repos:** example-app (~700 files, ~150k lines), `misc/chat-agent` (~30k), `misc/pi` (~230k), `misc/qm` (~260k), `misc/agent-cli` (~1.8k files, ~580k lines). Line counts are rough.
+- Works on very large codebases within bounded cost and time. Evals target codemap itself and a small fixture repo. Users add their own repos.
 - **Index (my call):** the tree-sitter index is built lazily, per file, when a tool first needs that file. It is cached in SQLite by file content hash. A trace touches a small slice of the repo, so a full up-front index is not needed. A single agent is enough at this scale while subagents are parked.
 
 **Non-goals (this version)**
@@ -44,16 +44,16 @@ v2 is a full rewrite in a new directory, `codemap-v2/`. The name stays `codemap`
 
 ```text
 $ cd <repo>
-$ codemap trace "file parsing system"
+$ codemap trace "how a trace is saved"
   → resolving entry points...
-  1) orchestration/workflows/document_processing.py:DocumentProcessingWorkflow.run
-  2) api/views/uploads.py:UploadView.post
+  1) src/codemap/pipeline/run.py:run_trace
+  2) src/codemap/cli/main.py:trace
   Pick entry point [1]: 2
   → tracing... (streamed step progress)
   → opened http://localhost:<port>/traces/<id>
 ```
 
-- Input is free text or a direct entry point (`path:symbol`, or route such as `POST /uploads`).
+- Input is free text or a direct entry point (`path:symbol`, or route such as `POST /traces`).
 - codemap resolves the input to ranked candidate entry points. **The user must confirm one before tracing starts.**
 - Default: build all levels at trace time.
 - `--lazy`: build Level 0 only. Build deeper levels when the user opens a node.
@@ -156,7 +156,7 @@ A **hop** is one "A leads to B" claim the trace agent records. Each hop has a ty
 
 ## 6. Pipeline
 
-Fixed steps in code. The model is called only inside bounded steps. This copies the example pattern (`agents/chat/run.py`, `company_research/run.py`).
+Fixed steps in code. The model is called only inside bounded steps. Each step has its own prompt, schema and budget.
 
 1. **Resolve.** Agent tool loop: find ranked entry point candidates for the input. Output is schema-validated.
 2. **Confirm.** CLI prompt. No model.
@@ -171,8 +171,8 @@ Every step emits progress events (step started, hop found, phase split, warnings
 
 ## 7. Agent runtime
 
-- **Own small tool loop.** No LangChain, LangGraph or deepagents. Use the Anthropic Python SDK pointed at MiniMax through the Anthropic-compatible endpoint (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`), as in v1's `.env`.
-- **Model:** MiniMax M3 only. Older MiniMax models are deprecated and must not be used. The model name is a constant, overridable by env.
+- **Own small tool loop.** No LangChain, LangGraph or deepagents. Use the provider SDK directly (OpenAI or Anthropic), configured by environment variables.
+- **Model:** the configured model (default `gpt-5-nano`). The model name is a constant, overridable by env.
 - **Tools (read-only, sandboxed to repo root, no shell):** `list_dir`, `read_file(path, start, end)`, `search(pattern, glob)` (ripgrep), `find_definition(symbol)`, `outline(path)` (symbols and signatures in a file), `record_hop`, `record_effect`.
 - **Two agents:** the trace agent and the verifier agent (§5.4). Both use the same tool loop and tools. They differ in prompt, context and output schema. The verifier has no `record_*` tools.
 - **Symbol index:** tree-sitter (language pack with many grammars) builds `find_definition` and `outline`. It is a speed-up only. If a language has no grammar, these tools fall back to `search`. Truth comes from reading code.
@@ -235,16 +235,16 @@ Approved behaviour (from mockups):
 - Unit tests for validation, rollup, staleness, store, tools sandbox.
 - Verifier eval: a fixed set of indirect hops from the target repos (real ones and planted fake ones). Measure how many real hops it rejects (must be near zero) and how many fake hops it catches.
 - Pipeline tests run on recorded model calls.
-- **Golden eval:** example's file parsing system (`../example-app`), traced from the upload API entry point through the Temporal workflow.
-  - **The code is ground truth, not the docs.** Docs 04 and 09 are design documents and can describe stages the code does not have.
-  - **Expected output (my call):** the builder writes `evals/example-file-parsing.expected.json` by reading the code at a pinned example commit. It lists phases and steps with `file:line` spans and the expected effects. The user reviews it once before it is used.
-  - **Expected shape (my call):** phases follow the code's execution units (the upload handler, then each Temporal activity). If Locate, Extract and Map run in one activity, they are steps inside one phase.
+- **Golden eval:** codemap's own trace pipeline, traced from the `trace` CLI command to the saved graph.
+  - **The code is ground truth, not the docs.** Design documents can describe stages the code does not have.
+  - **Expected output (my call):** the builder writes `evals/codemap-trace.expected.json` by reading the code. It lists phases and steps with `file:line` spans and the expected effects. The user reviews it once before it is used.
+  - **Expected shape (my call):** phases follow the code's execution units (the CLI command, then each pipeline stage). If resolve, walk and split run in one function, they are steps inside one phase.
   - Scored on the two anti-goals: nodes not on the path, and splits that disagree with the code's stages.
-- **MiniMax M3 compatibility (builder verifies first):** forced tool choice / structured output, parallel tool calls, usage fields. If structured output is not supported, use parse-and-validate with retry. If cost is not returned, compute it from a pricing table in code.
+- **Model compatibility (builder verifies first):** forced tool choice / structured output, parallel tool calls, usage fields. If structured output is not supported, use parse-and-validate with retry. If cost is not returned, compute it from a pricing table in code.
 
 ## 12. Structure and production setup
 
-Reference tools: marimo, Arize Phoenix and Langflow (a Python package that ships a built React UI inside the wheel), and simonw's `llm` and Datasette (CLI tools with a local SQLite store). example supplies the agent patterns and the layer rules.
+Reference tools: marimo, Arize Phoenix and Langflow (a Python package that ships a built React UI inside the wheel), and simonw's `llm` and Datasette (CLI tools with a local SQLite store).
 
 ### 12.1 File tree
 
@@ -252,7 +252,7 @@ Reference tools: marimo, Arize Phoenix and Langflow (a Python package that ships
 codemap-v2/
   pyproject.toml              # hatch; a build hook bundles frontend/ into the wheel
   Makefile                    # dev, build, check, eval
-  .importlinter               # layer contracts (§12.2), as in example
+  .importlinter               # layer contracts (§12.2)
   src/codemap/
     __main__.py               # python -m codemap
     settings.py               # pydantic-settings: env > ~/.config/codemap/config.toml > defaults
@@ -272,7 +272,7 @@ codemap-v2/
       run.py  resolve.py  walk.py  verify.py  split.py  detail.py  validate.py
     agents/                   # generic agent machinery, knows nothing about codemap
       loop.py                 # tool loop
-      model.py                # Anthropic SDK → MiniMax M3
+      model.py                # provider SDK (OpenAI or Anthropic)
       limits.py               # run limits → partial
       recording.py            # record / replay
     prompts/                  # one .md per agent prompt

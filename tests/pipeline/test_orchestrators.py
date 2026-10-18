@@ -9,11 +9,11 @@ from codemap.settings import Settings
 from fakes import ScriptedModel, resp, tool_use
 
 RUNNER = """\
-def run_domain_pipeline(doc, config):
-    tables = locate_domain_tables(doc)
-    rows = extract_tables(tables, config)
-    mapped = map_rows(rows)
-    return gate_values(mapped)
+def run_trace_pipeline(doc, config):
+    entries = resolve_entry_points(doc)
+    hops = walk_calls(entries, config)
+    levels = split_levels(hops)
+    return validate_nodes(levels)
 """
 
 
@@ -24,10 +24,10 @@ def stage(name: str, arg: str) -> str:
 
 FILES = {
     "pipeline/runner.py": RUNNER,
-    "pipeline/locate.py": stage("locate_domain_tables", "doc"),
-    "pipeline/extraction.py": stage("extract_tables", "tables"),
-    "pipeline/mapping.py": stage("map_rows", "rows"),
-    "pipeline/write_gate.py": stage("gate_values", "mapped"),
+    "pipeline/resolve.py": stage("resolve_entry_points", "doc"),
+    "pipeline/walk.py": stage("walk_calls", "tables"),
+    "pipeline/split.py": stage("split_levels", "rows"),
+    "pipeline/validate.py": stage("validate_nodes", "mapped"),
 }
 
 
@@ -36,12 +36,12 @@ def anchor(file: str, symbol: str) -> Anchor:
     return Anchor(file=file, start_line=1, end_line=n, symbol=symbol)
 
 
-RUN = anchor("pipeline/runner.py", "run_domain_pipeline")
-LOCATE = anchor("pipeline/locate.py", "locate_domain_tables")
-EXTRACT = anchor("pipeline/extraction.py", "extract_tables")
-MAP = anchor("pipeline/mapping.py", "map_rows")
-GATE = anchor("pipeline/write_gate.py", "gate_values")
-POINTS = [RUN, LOCATE, EXTRACT, MAP, GATE]
+RUN = anchor("pipeline/runner.py", "run_trace_pipeline")
+RESOLVE = anchor("pipeline/resolve.py", "resolve_entry_points")
+WALK = anchor("pipeline/walk.py", "walk_calls")
+SPLIT = anchor("pipeline/split.py", "split_levels")
+VALIDATE = anchor("pipeline/validate.py", "validate_nodes")
+POINTS = [RUN, RESOLVE, WALK, SPLIT, VALIDATE]
 
 
 def make_repo(tmp_path: Path) -> Path:
@@ -56,7 +56,7 @@ def test_detects_orchestrator_with_four_stage_callees(tmp_path: Path) -> None:
     ctx = build_context(make_repo(tmp_path), Settings(), "t1", model=ScriptedModel([]))
     found = find_orchestrators(ctx.tools, POINTS, [])
     assert [(o.anchor.symbol, [c.symbol for c in o.callees]) for o in found] == [
-        ("run_domain_pipeline", [p.symbol for p in POINTS[1:]])
+        ("run_trace_pipeline", [p.symbol for p in POINTS[1:]])
     ]
     flat, _ = flatten_points(ctx.tools, POINTS, [])
     assert flat == POINTS[1:]
@@ -75,7 +75,7 @@ def test_function_with_effects_is_not_an_orchestrator(tmp_path: Path) -> None:
 
 def test_stage_function_with_few_calls_is_not_an_orchestrator(tmp_path: Path) -> None:
     ctx = build_context(make_repo(tmp_path), Settings(), "t1", model=ScriptedModel([]))
-    assert find_orchestrators(ctx.tools, [LOCATE, EXTRACT, MAP, GATE], []) == []
+    assert find_orchestrators(ctx.tools, [RESOLVE, WALK, SPLIT, VALIDATE], []) == []
 
 
 def draft(title: str, a: Anchor) -> dict[str, Any]:
@@ -91,10 +91,10 @@ def draft(title: str, a: Anchor) -> dict[str, Any]:
 
 def test_orchestrator_with_four_stage_callees_yields_four_children(tmp_path: Path) -> None:
     steps = [
-        draft("Locate tables", LOCATE),
-        draft("Extract values", EXTRACT),
-        draft("Map to statements", MAP),
-        draft("Gate mapped values", GATE),
+        draft("Resolve entry", RESOLVE),
+        draft("Follow calls", WALK),
+        draft("Cut into levels", SPLIT),
+        draft("Check nodes", VALIDATE),
     ]
     model = ScriptedModel([resp(tool_use("submit", {"steps": steps}, "s1"))])
     ctx = build_context(make_repo(tmp_path), Settings(), "t1", model=model)
@@ -103,7 +103,7 @@ def test_orchestrator_with_four_stage_callees_yields_four_children(tmp_path: Pat
         level=1,
         order=0,
         parent_id="p0",
-        title="Assemble domain artifact",
+        title="Run trace pipeline",
         does="d",
         input="i",
         output="o",
@@ -113,13 +113,13 @@ def test_orchestrator_with_four_stage_callees_yields_four_children(tmp_path: Pat
     kids, reason = split_children(ctx, parent, POINTS, [])
     assert reason is None
     assert [k.title for k in kids] == [
-        "Locate tables",
-        "Extract values",
-        "Map to statements",
-        "Gate mapped values",
+        "Resolve entry",
+        "Follow calls",
+        "Cut into levels",
+        "Check nodes",
     ]
     user = model.requests[0]["messages"][0]["content"]
-    assert "[locate] locate_domain_tables" in user
+    assert "[resolve] resolve_entry_points" in user
     assert "Orchestrators folded away" in user
     points_block = user.split("Sub-path points:")[1].split("Parent code:")[0]
-    assert "run_domain_pipeline" not in points_block
+    assert "run_trace_pipeline" not in points_block

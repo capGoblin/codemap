@@ -2,7 +2,7 @@
 
 ## Model
 
-Anthropic SDK pointed at MiniMax (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`), model `MiniMax-M3` (`CODEMAP_MODEL` overrides). `agents/model.py`. Every call goes through `CachedModel` → `model_calls` table: same request = free replay. Probe notes: `docs/notes/minimax-m3.md`.
+The configured model, from OpenAI or Anthropic (default `gpt-5-nano`; `CODEMAP_MODEL` overrides). See `settings.py` and `agents/model.py`. Every call goes through `CachedModel` → `model_calls` table: same request = free replay.
 
 ## Budgets — `agents/limits.py`, `settings.py`
 
@@ -53,11 +53,11 @@ Global: `--repo PATH`, `--verbose`, `--version`.
 
 | File | Does |
 | --- | --- |
-| `example-file-parsing.expected.json` | golden example trace: Upload / Parse / Interpret (Locate, Extract, Map, Gate…) / Load, with spans + effects |
+| `codemap-trace.expected.json` | golden self-trace of codemap: Start trace / Find entry / Walk & verify / Build levels / Validate & save, with spans + effects |
 | `score.py` | off-path nodes, phase/step agreement (any depth), depth recall, effect recall, title/summary/phase-count checks |
-| `run_golden.py` | run + score example (`--record` = real model, else replay) |
-| `hops/hops.json`, `run_verifier.py` | 30 real + 21 fake indirect hops; real-rejected rate bar 2% |
-| `smoke.json`, `run_smoke.py` | one system per repo (chat-agent, pi, qm, agent-cli, example); status/cost/time table → `docs/notes/eval-results.md` |
+| `run_golden.py` | run + score the self-trace (`--record` = real model, else replay) |
+| `hops/hops.json`, `run_verifier.py` | 25 real + 15 fake indirect hops; real-rejected rate bar 2% |
+| `smoke.json`, `run_smoke.py` | one system per repo (codemap itself, the sample fixture; add your own); status/cost/time table → `docs/notes/eval-results.md` |
 
 ## Quality gate
 

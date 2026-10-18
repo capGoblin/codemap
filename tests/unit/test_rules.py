@@ -123,10 +123,13 @@ def test_anchor_key_and_drop_ratio():
 def test_path_points_joins_symbol_spellings_and_ranges():
     """Real failure: Session.build_system as callee, build_system as the next caller."""
     e = anc("s.py", 1, 5, "run")
-    callee = anc("chat-agent/session.py", 63, 88, "Session.build_system")
-    caller = anc("chat-agent/session.py", 63, 88, "build_system")
-    shifted = anc("chat-agent/session.py", 65, 80, "build_system")
-    g1, g2 = anc("chat-agent/r.py", 1, 9, "gated_retrieve"), anc("chat-agent/r.py", 20, 30, "should_retrieve")
+    callee = anc("app/session.py", 63, 88, "Session.build_system")
+    caller = anc("app/session.py", 63, 88, "build_system")
+    shifted = anc("app/session.py", 65, 80, "build_system")
+    g1, g2 = (
+        anc("app/retrieve.py", 1, 9, "gated_retrieve"),
+        anc("app/retrieve.py", 20, 30, "should_retrieve"),
+    )
     points = path_points(e, [hop(e, callee), hop(caller, g1), hop(shifted, g2)])
     assert [p.symbol for p in points] == [
         "run",

@@ -7,21 +7,29 @@ from codemap.domain.models import Anchor
 from codemap.repo.anchors import check_anchor
 from codemap.repo.ignore import RepoIgnore
 from codemap.repo.tools import RepoTools
-from evals.run_smoke import SmokeEntry, append_results, format_table, load_smoke, run_smoke
+from evals.run_smoke import (
+    SmokeEntry,
+    append_results,
+    format_table,
+    load_smoke,
+    resolve_repo,
+    run_smoke,
+)
 from evals.tests.test_run_golden import UPLOAD, ScriptedModel, committed_repo
 
 SMOKE = Path(__file__).resolve().parents[1] / "smoke.json"
 
 
-def test_smoke_file_has_five_repos() -> None:
-    assert len(load_smoke(SMOKE)) == 5
+def test_smoke_file_targets_this_repo_and_the_fixture() -> None:
+    repos = [i.repo for i in load_smoke(SMOKE)]
+    assert repos == [".", "tests/fixtures/sample_repo"]
+    assert all(not Path(r).is_absolute() for r in repos)
 
 
-@pytest.mark.parametrize("item", load_smoke(SMOKE), ids=lambda i: Path(i.repo).name)
+@pytest.mark.parametrize("item", load_smoke(SMOKE), ids=lambda i: i.repo)
 def test_smoke_entry_anchors_resolve(item: SmokeEntry) -> None:
-    root = Path(item.repo)
-    if not root.is_dir():
-        pytest.skip(f"{root} is not on this machine")
+    root = resolve_repo(item.repo)
+    assert root.is_dir()
     tools = RepoTools(root, RepoIgnore(root))
     assert check_anchor(tools, Anchor.model_validate(item.entry)) is None
 

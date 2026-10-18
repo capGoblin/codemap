@@ -60,7 +60,7 @@ export const targetKey = (e: Effect): string => `${uiCategory(e.category)}:${e.t
 export type Target = {
   key: string;
   label: string;
-  // One tag per (top-level phase, op): "W Upload", "R Parse".
+  // One tag per (top-level phase, op): "W Save", "R Resolve".
   tags: { phaseId: string; phaseTitle: string; op: EffectOp }[];
 };
 
