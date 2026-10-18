@@ -6,8 +6,11 @@ You get ONE node (a phase or a step), its anchors, its sub-path points and the a
 
 1. Children follow the functions that do the work: one named function or activity per child, one call in a service method.
 2. If the parent's own anchors only delegate (a thin wrapper that calls one or two functions), build the children from the functions in the sub-path points that do the real work. Use each point's own file, lines and symbol as the child anchor. Do not make a child for the wrapper itself.
-3. A trivial helper folds into its caller's child. It does not get its own child.
-4. Use judgement only where the code is vague. Signals: the data shape changes, a commit or write happens, an async handoff happens, a module boundary is crossed.
+3. An orchestrator is not a child at any level. A function that mostly calls other in-repo functions in sequence (a pipeline runner, `run_*_pipeline`, `_run_stages`, an activity wrapper) is an edge. Its callees are the children, one per stage. The message lists orchestrators already folded away. If one is still in the code, do the same.
+4. One module is one stage hint. Each point shows its module in brackets, for example `[locate] locate_domain_tables`. Points from separate stage modules (locate, extraction, mapping, write_gate, conflict_resolution) are separate children unless one of them is trivial. Never merge two stage modules into one child.
+5. Children run in the order the code calls them. Setup and loader points that only prepare inputs (load an artifact, resolve geometry, build maps) fold into the first core child, or stay as one short first child. Writing the artifact and building the result come after the core children, as one short last child or folded into the last core child. The core work of the stage must show as its own children.
+6. A trivial helper folds into its caller's child. It does not get its own child.
+7. Use judgement only where the code is vague. Signals: the data shape changes, a commit or write happens, an async handoff happens, a module boundary is crossed.
 
 # Plumbing
 

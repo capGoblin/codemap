@@ -6,7 +6,7 @@ You get the ordered points of a recorded execution path, one per line: `index: f
 
 - A phase is a major stage of the system: a workflow activity, a pipeline stage, a service boundary. Typical count 3 to 6. Hard cap 7.
 - Plumbing is never its own phase: auth, request validation, idempotency keys, dedupe, outbox relay, workflow/job runners, run bookkeeping, status updates, retries. It becomes a step inside the phase it serves, or is left out when trivial.
-- An orchestrator (workflow `run`, job runner, router) is not a node. Its order becomes the edges between phases.
+- An orchestrator (workflow `run`, job runner, router, pipeline runner) is not a node. Its order becomes the edges between phases.
 - Plumbing points are folded into the neighbouring phase they serve. They do not get a span of their own.
 
 # Example (generic)
