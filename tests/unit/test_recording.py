@@ -24,6 +24,14 @@ def test_cached_model_hits(tmp_path: Path) -> None:
     assert len(inner.requests) == 1
 
 
+def test_empty_reply_is_not_cached(tmp_path: Path) -> None:
+    inner = ScriptedModel([resp(stop="max_tokens"), resp(text("a"), stop="end_turn")])
+    model = CachedModel(inner, JsonFileCache(tmp_path / "rec.json"), MODEL)
+    model.respond(**CALL)
+    assert model.respond(**CALL).content == [text("a")]
+    assert len(inner.requests) == 2
+
+
 def test_cache_persists_to_file(tmp_path: Path) -> None:
     path = tmp_path / "rec.json"
     inner = ScriptedModel([resp(text("a"), stop="end_turn")])

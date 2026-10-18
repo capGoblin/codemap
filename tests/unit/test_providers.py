@@ -6,7 +6,13 @@ import openai
 import pytest
 
 from codemap.agents.model import ModelError
-from codemap.agents.providers import AnthropicModel, OpenAIModel, make_model, to_openai_messages
+from codemap.agents.providers import (
+    REASONING_HEADROOM,
+    AnthropicModel,
+    OpenAIModel,
+    make_model,
+    to_openai_messages,
+)
 from codemap.settings import Settings
 
 TOOL = {
@@ -71,8 +77,10 @@ class FakeCompletions:
         return self._completion
 
 
-def openai_model(completion: Any) -> tuple[OpenAIModel, FakeCompletions]:
-    model = OpenAIModel("key", "gpt-5-nano", 5)
+def openai_model(
+    completion: Any, model_id: str = "gpt-5-nano"
+) -> tuple[OpenAIModel, FakeCompletions]:
+    model = OpenAIModel("key", model_id, 5)
     fake = FakeCompletions(completion)
     model._client = SimpleNamespace(chat=SimpleNamespace(completions=fake))  # type: ignore[assignment]
     return model, fake
@@ -110,7 +118,8 @@ def test_openai_tool_calls_become_tool_use() -> None:
         {"type": "tool_use", "id": "c1", "name": "grep", "input": {"q": "x"}},
     ]
     assert (result.stop_reason, result.input_tokens, result.output_tokens) == ("tool_use", 11, 4)
-    assert fake.kwargs["max_completion_tokens"] == 99
+    assert fake.kwargs["max_completion_tokens"] == 99 + REASONING_HEADROOM
+    assert fake.kwargs["reasoning_effort"] == "low"
     assert "max_tokens" not in fake.kwargs
     assert "temperature" not in fake.kwargs
     assert fake.kwargs["tools"] == [
@@ -165,3 +174,10 @@ def test_empty_assistant_turn_sends_empty_string() -> None:
     # a reasoning model can spend its whole output budget and return no text and no tool call
     out = to_openai_messages("s", [{"role": "assistant", "content": []}])
     assert out[1] == {"role": "assistant", "content": ""}
+
+
+def test_non_reasoning_model_gets_plain_budget() -> None:
+    model, fake = openai_model(completion("ok", None, "stop"), model_id="gpt-4.1-mini")
+    respond(model)
+    assert fake.kwargs["max_completion_tokens"] == 99
+    assert "reasoning_effort" not in fake.kwargs

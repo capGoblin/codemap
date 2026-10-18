@@ -11,6 +11,9 @@ from codemap.settings import FALLBACK_KEY_VARS, Settings
 
 _MAX_RETRIES = 3
 _STOP_REASONS = {"tool_calls": "tool_use", "length": "max_tokens"}
+# reasoning tokens count against max_completion_tokens; without room the answer comes back empty
+REASONING_HEADROOM = 16_000
+_REASONING_PREFIXES = ("gpt-5", "o1", "o3", "o4")
 
 
 class AnthropicModel:
@@ -80,6 +83,9 @@ class OpenAIModel:
         kwargs: dict[str, Any] = {}
         if tools:
             kwargs["tools"] = [_openai_tool(t) for t in tools]
+        if self._model.startswith(_REASONING_PREFIXES):
+            kwargs["reasoning_effort"] = "low"
+            max_tokens += REASONING_HEADROOM
         try:
             completion = self._client.chat.completions.create(
                 model=self._model,

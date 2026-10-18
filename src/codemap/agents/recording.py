@@ -76,7 +76,8 @@ class CachedModel:
         resp = self._inner.respond(
             system=system, messages=messages, tools=tools, max_tokens=max_tokens
         )
-        self._cache.put(key, resp)
+        if resp.content:  # an empty reply is a failed call; a retry must reach the model
+            self._cache.put(key, resp)
         return resp
 
 
