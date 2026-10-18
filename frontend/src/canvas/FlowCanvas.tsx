@@ -101,6 +101,7 @@ export function FlowCanvas({ layoutFn = layoutInBrowser }: { layoutFn?: LayoutFn
     <>
       {layoutError && <div className="banner-err">Layout failed: {layoutError}</div>}
       <ReactFlow
+        proOptions={{ hideAttribution: true }}
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
