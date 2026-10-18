@@ -8,6 +8,7 @@ from pydantic import BaseModel, ValidationError
 
 from codemap.agents.limits import Budget, LimitReached
 from codemap.agents.model import ChatModel
+from codemap.agents.schema import unwrap_items
 
 SUBMIT = "submit"
 NUDGE = "Call a tool, or call submit with your answer."
@@ -102,7 +103,7 @@ def _stub_results(message: dict[str, Any]) -> dict[str, Any]:
 
 def _submit[T: BaseModel](schema: type[T], raw: dict[str, Any]) -> tuple[str, T | None]:
     try:
-        return "accepted", schema.model_validate(raw)
+        return "accepted", schema.model_validate(unwrap_items(raw))
     except ValidationError as exc:
         return f"validation error: {exc}", None
 
@@ -114,7 +115,7 @@ def _run_handler(
     if handler is None:
         return _result(block, f"error: unknown tool {block['name']}", True)
     try:
-        return _result(block, handler(block["input"]), False)
+        return _result(block, handler(unwrap_items(block["input"])), False)
     except Exception as exc:  # noqa: BLE001 - any handler failure goes back to the model
         return _result(block, f"error: {exc}", True)
 
