@@ -60,6 +60,21 @@ A trace costs from a few cents to about 30 cents, depending on the model and the
 
 Options for `trace`: `--pick N` (skip the entry prompt), `--no-open`, `--json` (print the graph for scripts). Press Ctrl-C to stop a run and keep a partial trace.
 
+## Use it as a skill (no API key)
+
+If you use Claude Code or a similar coding agent, you can skip the CLI and the key. [`skills/codemap`](skills/codemap) is a skill that makes your agent trace a flow and write one markdown file: a Mermaid map, the stages, the reads and writes, and a link to the code for every claim. It runs on the subscription you already have.
+
+```bash
+git clone https://github.com/capGoblin/codemap
+cp -R codemap/skills/codemap ~/.claude/skills/codemap
+```
+
+Then ask your agent: *"trace how a request gets authenticated"*. It writes `docs/flows/<name>.md`. See [a finished one](skills/codemap/examples/codemap-pipeline.md).
+
+Every claim cites lines the agent read, and a free script re-opens each cited range to check it. Hops it could not prove stay on the map as unsure. Ask for a strict trace and a separate subagent checks each indirect hop. Details are in [`skills/codemap/RELIABILITY.md`](skills/codemap/RELIABILITY.md).
+
+The CLI gives you the interactive map in the browser. The skill gives you a file you can commit and review in a PR.
+
 ## Models and keys
 
 OpenAI and Anthropic are supported. Global options go before the command:

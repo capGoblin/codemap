@@ -7,3 +7,4 @@ dist/
 .superpowers/
 evals/recordings/*.json
 .claude/
+.env
