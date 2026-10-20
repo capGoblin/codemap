@@ -1,0 +1,10 @@
+{
+  "name": "codemap",
+  "version": "0.1.0",
+  "description": "Trace one flow through a codebase and write it as a cited markdown map (Mermaid diagram plus stages with steps, reads and writes).",
+  "author": {
+    "name": "capGoblin"
+  },
+  "repository": "https://github.com/capGoblin/codemap",
+  "license": "MIT"
+}

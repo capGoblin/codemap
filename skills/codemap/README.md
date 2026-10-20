@@ -8,9 +8,18 @@ See a finished one: [examples/codemap-pipeline.md](examples/codemap-pipeline.md)
 
 ## Install
 
+In Claude Code (2.1.275 or later):
+
+```
+/plugin install codemap --marketplace capGoblin/codemap
+```
+
+On an older version, run `/plugin marketplace add capGoblin/codemap` and then `/plugin install codemap@codemap`.
+
+For Codex, Cursor and other agents that use the skills CLI:
+
 ```bash
-git clone https://github.com/capGoblin/codemap
-cp -R codemap/skills/codemap ~/.claude/skills/codemap
+npx skills add capGoblin/codemap
 ```
 
 Then, in your repo:

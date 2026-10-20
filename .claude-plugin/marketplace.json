@@ -1,0 +1,12 @@
+{
+  "name": "codemap",
+  "owner": { "name": "capGoblin" },
+  "description": "Skills that map how a flow works in a codebase.",
+  "plugins": [
+    {
+      "name": "codemap",
+      "source": "./skills/codemap",
+      "description": "Trace one flow through a codebase and write it as a cited markdown map."
+    }
+  ]
+}

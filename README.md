@@ -64,10 +64,11 @@ Options for `trace`: `--pick N` (skip the entry prompt), `--no-open`, `--json` (
 
 If you use Claude Code or a similar coding agent, you can skip the CLI and the key. [`skills/codemap`](skills/codemap) is a skill that makes your agent trace a flow and write one markdown file: a Mermaid map, the stages, the reads and writes, and a link to the code for every claim. It runs on the subscription you already have.
 
-```bash
-git clone https://github.com/capGoblin/codemap
-cp -R codemap/skills/codemap ~/.claude/skills/codemap
 ```
+/plugin install codemap --marketplace capGoblin/codemap
+```
+
+That is for Claude Code 2.1.275 or later. For other agents, run `npx skills add capGoblin/codemap`.
 
 Then ask your agent: *"trace how a request gets authenticated"*. It writes `docs/flows/<name>.md`. See [a finished one](skills/codemap/examples/codemap-pipeline.md).
 
